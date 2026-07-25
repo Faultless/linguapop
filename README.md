@@ -1,65 +1,32 @@
 # LinguaPop
 
-A Japanese language-learning novel reader. Import EPUB / TXT files (or a paired original + translation), and read with switchable view modes, per-token JLPT color coding, tap-for-dictionary, select-for-translation, custom themes, TTS, and more.
+A Japanese language-learning novel reader. Import an EPUB/TXT (or a paired original + translation) and
+read with per-token JLPT color coding, tap-for-dictionary, select-for-translation, switchable view
+modes, custom themes and TTS — fully offline. Flutter → **Android, web and Linux desktop** from one
+codebase (iOS scaffolds with `flutter create . --platforms ios`).
 
-> **Status**: this repo is being migrated from a React/TypeScript monorepo to a single **Flutter** codebase. The old TS sources are kept under `legacy_ts/` as reference. See `CLAUDE.md` for the migration status table.
-
-## Targets
-
-| Platform     | Status      | Notes                                  |
-|--------------|-------------|----------------------------------------|
-| Android      | ✅ scaffold | Native back button, edge-to-edge       |
-| Linux desktop| ✅ scaffold |                                        |
-| Web          | ✅ scaffold | No MeCab — tokenizer is degraded on web|
-| iOS          | ⏳ not yet  | `flutter create . --platforms ios`     |
-
-## Getting started
+## Get started
 
 ```bash
+git clone https://github.com/Faultless/linguapop-extension.git
+cd linguapop-extension
 flutter pub get
-flutter run                 # auto-pick device
-flutter run -d chrome       # web
-flutter run -d linux        # Linux desktop
+flutter run                      # run on any connected device
 ```
 
-### Building
+## Build for your platform
 
 ```bash
-flutter build apk --debug         # Android APK
-flutter build apk --release
-flutter build web
-flutter build linux
+flutter build apk --release      # Android
+flutter build web                # web (tokenizer is degraded — no native MeCab)
+flutter build linux              # Linux desktop
 ```
 
-### Checks
+## Checks
 
 ```bash
-flutter analyze       # static analysis + lints
-flutter test          # tests
+flutter analyze
+flutter test
 ```
 
-## Project layout
-
-```
-lib/
-  main.dart        bootstrap
-  app.dart         MaterialApp.router
-  data/            models · storage · themes
-  providers/       Riverpod state notifiers
-  ui/              router · screens · widgets
-assets/jlpt/       JLPT vocab JSON (port of legacy_ts data)
-legacy_ts/         previous React/TS monorepo (reference only)
-```
-
-For architectural decisions, conventions, and a port checklist, see `CLAUDE.md`.
-
-## Tech stack
-
-- Flutter 3.41 (Dart 3.11)
-- Riverpod (state) · go_router (navigation) · Hive (storage)
-- mecab_dart (Japanese tokenization, native) · flutter_tts · http
-- archive · xml · file_picker (EPUB / TXT import)
-
-## License
-
-TBD.
+For architecture, conventions and the TS→Flutter port status, see `CLAUDE.md`.
