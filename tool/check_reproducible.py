@@ -41,13 +41,34 @@ def is_signature(name: str) -> bool:
     return name.rsplit('.', 1)[-1].upper() in SIGNATURE_SUFFIXES
 
 
-def entries(path: str) -> dict[str, tuple[str, int]]:
+# Compared alongside content, because the v2/v3 signature digests cover the
+# whole file: two APKs whose entries all match can still fail verification if
+# the container differs. `header_offset` is the one that actually bit me —
+# apksigner realigns by default, shifting every entry a few bytes.
+CONTAINER_FIELDS = (
+    'date_time', 'compress_type', 'CRC', 'compress_size', 'file_size',
+    'flag_bits', 'header_offset',
+)
+
+
+def entries(path: str) -> dict[str, tuple]:
     with zipfile.ZipFile(path) as z:
-        return {
-            n: (hashlib.sha256(z.read(n)).hexdigest(), z.getinfo(n).compress_type)
-            for n in z.namelist()
-            if n != 'META-INF/' and not is_signature(n)
-        }
+        out = {}
+        for n in z.namelist():
+            if n == 'META-INF/' or is_signature(n):
+                continue
+            i = z.getinfo(n)
+            out[n] = (
+                hashlib.sha256(z.read(n)).hexdigest(),
+                tuple(getattr(i, f) for f in CONTAINER_FIELDS),
+                len(i.extra),
+            )
+        return out
+
+
+def order(path: str) -> list[str]:
+    with zipfile.ZipFile(path) as z:
+        return [n for n in z.namelist() if not is_signature(n)]
 
 
 def main() -> int:
@@ -67,10 +88,15 @@ def main() -> int:
     only_a = sorted(set(a) - set(b))
     only_b = sorted(set(b) - set(a))
     changed = sorted(n for n in set(a) & set(b) if a[n] != b[n])
+    reordered = order(args.reference) != order(args.candidate)
+
+    if reordered:
+        print('DIFFERS: entry order is not the same')
+        return 1
 
     if not (only_a or only_b or changed):
-        what = 'signing left every entry untouched' if args.signing_only \
-            else f'{len(a)} entries identical'
+        what = 'signing left every entry and offset untouched' \
+            if args.signing_only else f'{len(a)} entries identical, container too'
         print(f'OK: {what}')
         return 0
 
@@ -81,7 +107,10 @@ def main() -> int:
         print(f'  only in candidate: {n}')
     for n in changed:
         note = ''
-        if n.endswith('libapp.so'):
+        if a[n][0] == b[n][0]:
+            note = '  (contents match; the container differs — offsets or ' \
+                   'timestamps. Signing without --alignment-preserved does this)'
+        elif n.endswith('libapp.so'):
             note = '  (Dart AOT snapshot — check PUB_CACHE and source path)'
         elif n.endswith('.so'):
             note = '  (NDK output — check source and toolchain paths)'

@@ -42,7 +42,13 @@ for abi in armeabi-v7a arm64-v8a x86_64; do
   in="$SRC/app-$abi-release.apk"
   [ -f "$in" ] || { echo "missing $in"; exit 1; }
   out="$WORK/signed/linguapop-$VERSION-$abi.apk"
+  # --alignment-preserved is load-bearing. Without it apksigner realigns the
+  # archive, shifting every entry's offset by a few bytes. Entry *contents*
+  # stay identical, so a content-level comparison looks clean — but the v2/v3
+  # signature digests cover the whole file, so F-Droid's check of its own
+  # build against this binary fails with a CHUNKED_SHA512 mismatch.
   "$APKSIGNER" sign \
+    --alignment-preserved \
     --ks "$KP_storeFile" --ks-pass "pass:$KP_storePassword" \
     --ks-key-alias "$KP_keyAlias" --key-pass "pass:$KP_keyPassword" \
     --out "$out" "$in"
