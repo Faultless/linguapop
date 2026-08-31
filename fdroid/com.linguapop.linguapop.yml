@@ -6,6 +6,7 @@ AntiFeatures:
       and no telemetry, and makes no request that the user did not ask for.
 Categories:
   - Reading
+  - News
   - Science & Education
 License: GPL-3.0-or-later
 AuthorName: Serge Kamel
@@ -27,8 +28,7 @@ Builds:
       - flutter@stable
     prebuild:
       - git -C $$flutter$$ checkout -f $(cat FLUTTER_VERSION)
-      - "sed -i -e '/signingConfig = signingConfigs.getByName(\"debug\")/d'
-        android/app/build.gradle.kts"
+      - sed -i -e '/signingConfig = signingConfigs.getByName("debug")/d' android/app/build.gradle.kts
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get --enforce-lockfile
@@ -49,8 +49,7 @@ Builds:
       - flutter@stable
     prebuild:
       - git -C $$flutter$$ checkout -f $(cat FLUTTER_VERSION)
-      - "sed -i -e '/signingConfig = signingConfigs.getByName(\"debug\")/d'
-        android/app/build.gradle.kts"
+      - sed -i -e '/signingConfig = signingConfigs.getByName("debug")/d' android/app/build.gradle.kts
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get --enforce-lockfile
@@ -71,8 +70,7 @@ Builds:
       - flutter@stable
     prebuild:
       - git -C $$flutter$$ checkout -f $(cat FLUTTER_VERSION)
-      - "sed -i -e '/signingConfig = signingConfigs.getByName(\"debug\")/d'
-        android/app/build.gradle.kts"
+      - sed -i -e '/signingConfig = signingConfigs.getByName("debug")/d' android/app/build.gradle.kts
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get --enforce-lockfile
@@ -85,7 +83,12 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-x64
     ndk: 28.2.13676358
 
-AutoUpdateMode: Version
-UpdateCheckMode: Tags
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags ^v.*$
+VercodeOperation:
+  - '%c + 1000'
+  - '%c + 2000'
+  - '%c + 3000'
+UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
 CurrentVersion: 7.1.1
 CurrentVersionCode: 3009
