@@ -1,0 +1,76 @@
+name: Release APKs
+
+# Builds the per-ABI release APKs on Linux x86_64 — the same host platform
+# F-Droid's buildserver uses — so that the binaries published on a release can
+# be byte-compared against F-Droid's own build of the same commit.
+#
+# A macOS-built APK cannot match: 391 of 395 entries do, but `libapp.so`
+# (the Dart AOT snapshot), the two NDK-compiled `.so`s and `NOTICES.Z` all
+# come out of host tooling. And Flutter ships no linux-arm64 host
+# `gen_snapshot` for Android AOT at all, so a local container on an Apple
+# Silicon machine can't stand in either.
+#
+# Deliberately produces **unsigned** APKs: the signing key stays off CI. The
+# release is signed locally with `apksigner`, which only adds a signing block
+# and leaves every zip entry untouched — which is the part F-Droid compares.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit, tag or branch to build'
+        required: true
+        default: 'main'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Read pinned Flutter version
+        id: pins
+        run: |
+          echo "flutter=$(cat FLUTTER_VERSION)" >> "$GITHUB_OUTPUT"
+          echo "ndk=$(sed -n 's/.*ndkVersion = "\([0-9.]*\)".*/\1/p' android/app/build.gradle.kts)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.pins.outputs.flutter }}
+          channel: stable
+          cache: true
+
+      - name: Install the pinned NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "ndk;${{ steps.pins.outputs.ndk }}"
+
+      - name: Strip signing, as F-Droid's recipe does
+        run: sed -i -e '/FDROID-STRIP/d' android/app/build.gradle.kts
+
+      - name: Build
+        run: |
+          export PUB_CACHE="$PWD/.pub-cache"
+          flutter config --no-analytics
+          flutter pub get --enforce-lockfile
+          flutter build apk --release --split-per-abi
+
+      - name: Report what was built
+        run: |
+          cd build/app/outputs/flutter-apk
+          for f in app-*-release.apk; do
+            echo "$f  $(sha256sum "$f" | cut -c1-16)"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-apks-${{ inputs.ref }}
+          path: build/app/outputs/flutter-apk/app-*-release.apk
+          if-no-files-found: error
