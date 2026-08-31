@@ -137,6 +137,45 @@ void main() {
     expect(marked.single, contains('signingConfig ='));
   });
 
+  test('binary URLs, when present, match what sign_release.sh publishes', () {
+    // Reproducible builds only work if the URL F-Droid fetches is the one the
+    // release script actually uploads. sign_release.sh names its output
+    // `linguapop-<version>-<abi>.apk`.
+    final script = File('tool/sign_release.sh').readAsStringSync();
+    expect(script, contains(r'linguapop-$VERSION-$abi.apk'),
+        reason: 'release asset naming changed; update this test and the recipe');
+
+    for (final build in recipe['Builds'] as List) {
+      final binary = build['binary'] as String?;
+      if (binary == null) continue; // not using developer-signed binaries
+      final abi = (build['output'] as String)
+          .split('/')
+          .last
+          .replaceFirst('app-', '')
+          .replaceFirst('-release.apk', '');
+      expect(binary, endsWith('/linguapop-%v-$abi.apk'),
+          reason: 'binary URL must match the published asset name for $abi');
+      expect(binary, contains('/releases/download/v%v/'));
+    }
+  });
+
+  test('AllowedAPKSigningKeys, when set, is a bare lowercase SHA-256', () {
+    final keys = recipe['AllowedAPKSigningKeys'];
+    if (keys == null) return; // F-Droid signing
+    for (final k in keys is List ? keys : [keys]) {
+      expect('$k', matches(RegExp(r'^[0-9a-f]{64}$')),
+          reason: 'expected a lower-case hex SHA-256 with no colons');
+    }
+    // Developer-signed binaries are meaningless without somewhere to fetch
+    // them from.
+    expect(
+      (recipe['Builds'] as List).every((b) => b['binary'] != null) ||
+          recipe['Binaries'] != null,
+      isTrue,
+      reason: 'AllowedAPKSigningKeys needs Binaries or a per-build binary',
+    );
+  });
+
   test('the pinned NDK matches the one gradle builds against', () {
     final gradle = File('android/app/build.gradle.kts').readAsStringSync();
     final pinned =
