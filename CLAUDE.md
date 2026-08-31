@@ -324,6 +324,19 @@ may carry the marker**, which a test enforces. Keying the strip off a marker
 rather than the shape of the code is deliberate: the code changed once and broke
 the old `sed` silently.
 
+Release APKs are built by the **Release APKs** GitHub Actions workflow on
+linux-x86_64 and signed locally by `tool/sign_release.sh`; the key stays off
+CI. That's not a preference — F-Droid rebuilds each tagged commit and compares
+it to the published binary, and only a linux-x64 build can match. A macOS build
+differs in `libapp.so`, `libdartjni.so`, `libmecab_dart.so` and `NOTICES.Z`;
+an arm64 Linux host can't build a Flutter release APK at all, because Flutter
+ships no linux-arm64 host `gen_snapshot` for Android AOT. The workflow also
+mirrors F-Droid's absolute paths (`/builds/Faultless/fdroiddata/build/<appid>`,
+`/opt/android-sdk`, `PUB_CACHE` inside the app dir) because package URIs and
+source paths are baked into those binaries. `tool/check_reproducible.py`
+compares two APKs the way F-Droid does; their build artifacts can be downloaded
+from the MR's `fdroid build` job, so reproducibility is checkable locally.
+
 `test/fdroid_metadata_test.dart` checks the recipe in `fdroid/` against the app:
 versionCodes against `pubspec.yaml` and gradle's ABI map, `VercodeOperation`
 against the declared codes and their required ordering, that no code regresses

@@ -64,6 +64,32 @@ the debug key when it doesn't. That file and the keystore are gitignored. **If
 you create one, back it up** — losing it means never being able to ship an
 update that existing installs will accept.
 
+### Cutting a release
+
+Release APKs are built by the **Release APKs** GitHub Actions workflow on
+linux-x86_64, not locally. F-Droid rebuilds each tagged commit and compares it
+against the binary published here, and only a Linux x86_64 build stands a
+chance of matching — a macOS build differs in `libapp.so`, the two
+NDK-compiled `.so`s and `NOTICES.Z`, and Flutter ships no linux-arm64 host
+`gen_snapshot` for Android AOT at all, so a container on an Apple Silicon
+machine can't stand in either. The workflow also mirrors F-Droid's absolute
+build paths, because package URIs and source paths are baked into those
+binaries.
+
+    gh workflow run "Release APKs" -f ref=v7.4.1     # build
+    tool/sign_release.sh <run-id> 7.4.1              # sign locally, publish
+
+The workflow produces **unsigned** APKs on purpose — the signing key stays off
+CI. `apksigner` only adds a signing block and leaves every zip entry untouched,
+which is the part F-Droid compares; `tool/sign_release.sh` asserts that.
+
+    tool/check_reproducible.py fdroid-build.apk our-release.apk
+
+compares two APKs the way F-Droid's verification does and names the entries
+that diverge. F-Droid's own build artifacts can be pulled from the merge
+request's `fdroid build` job, which makes it possible to check reproducibility
+locally instead of a round trip through their CI.
+
 One APK per ABI, with version codes `buildNumber * 10 + abi`
 (armeabi-v7a=1, arm64-v8a=2, x86_64=3), applied in `android/app/build.gradle.kts`
 because Flutter's own scheme puts the ABI in the high digits and leaves no room
