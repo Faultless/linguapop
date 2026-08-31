@@ -49,8 +49,10 @@ jobs:
 
       - name: Install the pinned NDK
         run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "ndk;${{ steps.pins.outputs.ndk }}"
+          # sdkmanager isn't on PATH on the hosted runners.
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+          "$SDKMANAGER" "ndk;${{ steps.pins.outputs.ndk }}"
 
       - name: Strip signing, as F-Droid's recipe does
         run: sed -i -e '/FDROID-STRIP/d' android/app/build.gradle.kts
