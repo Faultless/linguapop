@@ -59,10 +59,16 @@ F-Droid signs with its own key, so its build deletes the line marked
 in that file may carry the marker — a test enforces it.
 
 Release builds sign with a real keystore when `android/key.properties` exists
-(`storeFile` / `storePassword` / `keyAlias` / `keyPassword`), and fall back to
-the debug key when it doesn't. That file and the keystore are gitignored. **If
-you create one, back it up** — losing it means never being able to ship an
-update that existing installs will accept.
+(`storeFile` / `storeType` / `storePassword` / `keyAlias` / `keyPassword`), and
+fall back to the debug key when it doesn't. Both that file and the keystore are
+gitignored.
+
+The keystore lives outside the repo, at `~/Documents/LinguaPop Signing Key/`,
+with a `READ ME FIRST.md` alongside it. **Keep a copy off the machine.** F-Droid
+pins this certificate (`AllowedAPKSigningKeys`), so losing the key means never
+being able to ship an update that any existing install will accept — and
+F-Droid can't re-sign on your behalf, because published binaries are verified
+against it.
 
 ### Cutting a release
 

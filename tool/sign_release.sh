@@ -21,7 +21,7 @@ VERSION="${2:?usage: sign_release.sh <workflow-run-id> <version>}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KEY_PROPS="$REPO_ROOT/android/key.properties"
-[ -f "$KEY_PROPS" ] || { echo "missing $KEY_PROPS — see ~/.android-keystores/README-linguapop.md"; exit 1; }
+[ -f "$KEY_PROPS" ] || { echo "missing $KEY_PROPS — see ~/Documents/'LinguaPop Signing Key'/'READ ME FIRST.md'"; exit 1; }
 
 APKSIGNER="$(ls "$HOME"/Library/Android/sdk/build-tools/*/apksigner 2>/dev/null | tail -1)"
 [ -x "$APKSIGNER" ] || { echo "apksigner not found"; exit 1; }
