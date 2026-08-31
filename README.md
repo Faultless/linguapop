@@ -50,7 +50,9 @@ Bundled third-party components keep their own licences:
 `fdroid/com.linguapop.linguapop.yml` is the build recipe submitted to
 [fdroiddata](https://gitlab.com/fdroid/fdroiddata). Keep it in step with the
 app when the Flutter version (`FLUTTER_VERSION`), the NDK version
-(`android/app/build.gradle.kts`) or the release tag changes.
+(`android/app/build.gradle.kts`) or the release tag changes —
+`test/fdroid_metadata_test.dart` fails if it drifts, which is cheaper than
+waiting an hour for F-Droid's buildserver to say so.
 
 F-Droid signs with its own key, so its build deletes the debug `signingConfig`
 line from `android/app/build.gradle.kts` during prebuild. Store listing text

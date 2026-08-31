@@ -1,8 +1,66 @@
 import 'package:flutter/material.dart';
 
+import '../../data/models/jlpt_stats.dart';
 import 'difficulty_badge.dart';
 import 'news_thumb.dart';
 import 'newspaper.dart';
+
+/// A day's worth of the paper: its header row, and how many stories it holds.
+class DaySection {
+  final String key;
+  final String label;
+
+  /// Null for the undated bucket, which can't be fetched by date.
+  final DateTime? day;
+  int count = 0;
+
+  DaySection({required this.key, required this.label, this.day});
+}
+
+/// Lay a chronological list out as day headers interleaved with fixed-size
+/// bands of stories.
+///
+/// A folded day contributes its header and nothing else — which is also why
+/// folding is the cheapest way to make a very long paper scroll well: the
+/// list simply stops having those rows.
+///
+/// Generic over the story type so it can be exercised without a library, a
+/// tokenizer or a Hive box behind it.
+List<Object> buildDayRows<T>({
+  required List<T> items,
+  required int bandSize,
+  required Set<String> collapsed,
+  required String Function(T) keyOf,
+  required String Function(T) labelOf,
+  required DateTime? Function(T) dayOf,
+}) {
+  final rows = <Object>[];
+  final buf = <T>[];
+  DaySection? section;
+
+  void flush() {
+    final sec = section;
+    if (sec != null && !collapsed.contains(sec.key)) {
+      for (var i = 0; i < buf.length; i += bandSize) {
+        rows.add(buf.sublist(i, (i + bandSize).clamp(0, buf.length)));
+      }
+    }
+    buf.clear();
+  }
+
+  for (final item in items) {
+    final key = keyOf(item);
+    if (section == null || section.key != key) {
+      flush();
+      section = DaySection(key: key, label: labelOf(item), day: dayOf(item));
+      rows.add(section);
+    }
+    section.count++;
+    buf.add(item);
+  }
+  flush();
+  return rows;
+}
 
 /// One story as the front page needs it — deliberately not tied to
 /// [NewsArticle] so the layout can be laid out and tested on its own.
@@ -15,8 +73,12 @@ class FrontPageItem {
   final int? publishedAt;
   final bool read;
 
-  /// Text the difficulty badge scores. Usually the full article body.
+  /// Text the difficulty badge scores, when it has to score one at all.
   final String difficultyText;
+
+  /// Difficulty computed when the article was imported. Present for anything
+  /// imported since that became a thing; null falls back to estimating.
+  final JlptStats? stats;
 
   const FrontPageItem({
     required this.id,
@@ -27,6 +89,7 @@ class FrontPageItem {
     this.publishedAt,
     this.read = false,
     this.difficultyText = '',
+    this.stats,
   });
 }
 
@@ -282,7 +345,10 @@ class _FrontPageStoryState extends State<FrontPageStory> {
                   ),
                 const Spacer(),
                 if (widget.showDifficulty)
-                  DifficultyBadge(text: item.difficultyText, fontSize: 8.5),
+                  DifficultyBadge(
+                      text: item.difficultyText,
+                      stats: item.stats,
+                      fontSize: 8.5),
               ],
             ),
             const SizedBox(height: 4),

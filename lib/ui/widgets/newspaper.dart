@@ -263,6 +263,98 @@ class NewsSectionRule extends StatelessWidget {
   }
 }
 
+/// A day's masthead within the page: the date between rules, the number of
+/// stories filed, a fold control, and a way to go and fetch that day.
+///
+/// Folded, it draws as a rolled edge — a couple of stacked rules under the
+/// header — so a collapsed day reads as a paper rolled up rather than as a
+/// missing section.
+class NewsDayHeader extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool collapsed;
+  final VoidCallback onToggle;
+
+  /// Fetch this day from the papers on the stand. Null while a fetch is
+  /// already running, or for the undated bucket.
+  final VoidCallback? onFetch;
+
+  const NewsDayHeader({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.collapsed,
+    required this.onToggle,
+    this.onFetch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  AnimatedRotation(
+                    turns: collapsed ? -0.25 : 0,
+                    duration: const Duration(milliseconds: 160),
+                    child: Icon(Icons.keyboard_arrow_down,
+                        size: 19,
+                        color: cs.onSurface.withValues(alpha: 0.6)),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '【$label】',
+                    style: NewsprintStyle.meta(cs, size: 12.5)
+                        .copyWith(letterSpacing: 1.2),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$count件',
+                    style: NewsprintStyle.meta(cs, size: 10).copyWith(
+                        letterSpacing: 0.5,
+                        color: cs.onSurface.withValues(alpha: 0.5)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: NewsRule(alpha: 0.45, weight: 1.6)),
+                  if (onFetch != null)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: InkWell(
+                        onTap: onFetch,
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Icon(Icons.add,
+                              size: 17,
+                              color: cs.primary.withValues(alpha: 0.85)),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (collapsed) ...[
+            const SizedBox(height: 5),
+            NewsRule(alpha: 0.22),
+            const SizedBox(height: 2),
+            NewsRule(alpha: 0.14),
+            const SizedBox(height: 2),
+            NewsRule(alpha: 0.08),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// A paper on the rack: the source's name set as a miniature masthead, with
 /// an unread count. Selected state inverts to ink-on-paper.
 class PaperTab extends StatelessWidget {

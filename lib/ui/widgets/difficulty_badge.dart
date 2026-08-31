@@ -19,12 +19,18 @@ class DifficultyBadge extends ConsumerStatefulWidget {
   final bool showBar;
   final double fontSize;
 
+  /// Already-computed breakdown. When set the badge does no work at all —
+  /// this is the path the front page uses, because tokenizing each article as
+  /// it scrolled into view was the most expensive thing on that screen.
+  final JlptStats? stats;
+
   const DifficultyBadge({
     super.key,
     required this.text,
     this.approx = false,
     this.showBar = false,
     this.fontSize = 10.5,
+    this.stats,
   });
 
   @override
@@ -37,15 +43,15 @@ class _DifficultyBadgeState extends ConsumerState<DifficultyBadge> {
   @override
   void initState() {
     super.initState();
-    _estimate();
+    if (widget.stats == null) _estimate();
   }
 
   @override
   void didUpdateWidget(covariant DifficultyBadge old) {
     super.didUpdateWidget(old);
-    if (old.text != widget.text) {
+    if (old.text != widget.text || old.stats != widget.stats) {
       _stats = null;
-      _estimate();
+      if (widget.stats == null) _estimate();
     }
   }
 
@@ -59,7 +65,7 @@ class _DifficultyBadgeState extends ConsumerState<DifficultyBadge> {
 
   @override
   Widget build(BuildContext context) {
-    final stats = _stats;
+    final stats = widget.stats ?? _stats;
     final bucket = stats?.difficultyBucket;
     if (stats == null || bucket == null) return const SizedBox.shrink();
     final c = kJlptColors[bucket] ?? Colors.grey;

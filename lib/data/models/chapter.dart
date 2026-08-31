@@ -1,3 +1,5 @@
+import 'jlpt_stats.dart';
+
 enum TranslationStatus { none, pending, translated, failed }
 
 class Chapter {
@@ -8,8 +10,18 @@ class Chapter {
   TranslationStatus translationStatus;
   String? sourceUrl;
   int? publishedAt;
-  /// Optional lead image (news articles). Remote URL; lazy-loaded in listings.
+  /// Optional lead image (news articles). Remote URL, or `local:<key>` for
+  /// bytes captured at import time; lazy-loaded in listings.
   String? imageUrl;
+
+  /// JLPT word-level breakdown, computed once when the article is imported.
+  ///
+  /// The front page shows a difficulty badge on every headline, and deriving
+  /// it at paint time meant running the tokenizer over each article as it
+  /// scrolled into view — the single most expensive thing on that screen.
+  /// Null for anything imported before this existed; the badge falls back to
+  /// estimating on demand.
+  JlptStats? jlptStats;
 
   Chapter({
     required this.id,
@@ -20,6 +32,7 @@ class Chapter {
     this.sourceUrl,
     this.publishedAt,
     this.imageUrl,
+    this.jlptStats,
   });
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +44,7 @@ class Chapter {
         if (sourceUrl != null) 'sourceUrl': sourceUrl,
         if (publishedAt != null) 'publishedAt': publishedAt,
         if (imageUrl != null) 'imageUrl': imageUrl,
+        if (jlptStats != null) 'jlptStats': jlptStats!.toJson(),
       };
 
   factory Chapter.fromJson(Map<String, dynamic> j) => Chapter(
@@ -42,6 +56,10 @@ class Chapter {
         sourceUrl: j['sourceUrl'] as String?,
         publishedAt: (j['publishedAt'] as num?)?.toInt(),
         imageUrl: j['imageUrl'] as String?,
+        jlptStats: j['jlptStats'] is Map
+            ? JlptStats.fromJson(
+                Map<String, dynamic>.from(j['jlptStats'] as Map))
+            : null,
       );
 
   static TranslationStatus _parseStatus(dynamic v) {

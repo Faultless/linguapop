@@ -223,7 +223,9 @@ UI: `lib/ui/screens/sources_screen.dart` — single search bar, source-filter ch
 - **Images are captured, not hot-linked** — `NewsImageStore` (`lib/services/sources/news_image_store.dart`) downloads each lead image at import time through the adapters' `SessionClient` and stores the bytes in the `news_images` box, rewriting `Chapter.imageUrl` to `local:<key>`. NHK serves its article images from `news.web.nhk`, which answers 401 to anything without the session cookie the feed handshake negotiates — `Image.network` has no cookie jar, so every NHK picture used to render as a broken box. Capturing also makes the front page draw instantly and work offline. The box is capped at `maxImages` (oldest evicted first) and an article's image is dropped with the article.
 - **Type weights** — headlines cap at `w700`. Android's `serif` family has no CJK coverage, so Japanese falls through to Noto Serif/Sans CJK, which ships Regular and Bold and *synthesises* anything heavier; at w800+ the strokes of a dense kanji smear together and the headline stops being readable.
 - **Switching papers** — swipe left/right anywhere on the page (wraps around). In full mode a `PaperTab` rack is also pinned at the top with unread counts; `?paper=<id>` deep-links to one paper, and the library opens a `SourceType.feed` novel here instead of the reader.
+- **Foldable days** — each day is a `DaySection` with a `NewsDayHeader`: date, story count, a fold chevron and a "+" that fetches that day. A folded day contributes its header and nothing else, which is also the cheapest way to make a long paper scroll well. `buildDayRows` (generic, in `front_page.dart`, so it's testable without a library or tokenizer behind it) does the grouping. Fold state is session-only — folding is a reading gesture, not a setting.
 - **No hard refresh** — the screen holds the last rendered list (`_lastArticles`) and ignores the provider's loading state, so a sync only ever adds stories instead of flashing a spinner. Combined with `SourceImporter.importArticles` batching a whole source into one library write, a ten-article fetch redraws the page once.
+- **Scroll cost** — the expensive thing on this screen was the difficulty badge: deriving one meant tokenizing the article as it scrolled into view. `Chapter.jlptStats` is now computed once at import (`SourceImporter._scoreDifficulty`) and handed to `DifficultyBadge` as `stats`, which then does no work at all. Articles imported before that fall back to estimating on demand, from the same `JlptEstimator.sample` window so old and new articles score alike. The list also turns off automatic keep-alives, and snippets are cut from the first 240 characters rather than running a whitespace regex over whole article bodies.
 - The old linear layouts are still reachable through the view-mode button (`list` / `card`); `grid` means the front page here.
 
 ### Reading mode
@@ -262,8 +264,11 @@ Which feeds made the cut was decided by `dart run tool/smoke_desks.dart`, which 
 `FeedFetchMode`:
 - `today` — everything published today; if today's edition isn't out yet, the whole of the newest day the feed carries (NHK Easy publishes on a lag, so a literal "today" filter often returned an empty paper).
 - `latest10` / `latest30` — the N newest unimported stories.
+- `day` — everything filed on one calendar day, paired with the `day` argument.
 
-Every mode skips already-imported `sourceUrl`s, sorts newest-first, and is capped at `FeedSync.maxPerSource` (40) per pass. Surfaced as "Today's paper" / "Latest 10" buttons under the masthead, a mode picker in the app bar, pull-to-refresh, and a per-source bulk menu in the browse screen.
+`FeedSync.survey` lists every carried source once and buckets what *isn't* already imported by publication day, so the fetch sheet can offer back issues by date with counts ("8月30日 · 14 new") instead of an undifferentiated "latest N". That's the orderly path; the latest-N modes remain as shortcuts. Day headers on the page carry the same action for their own date.
+
+Every mode skips already-imported `sourceUrl`s, sorts newest-first, and is capped at `FeedSync.maxPerSource` (40) per pass. Surfaced as buttons under the masthead, the fetch sheet in the app bar, pull-to-refresh, per-day "+" on the day headers, and a per-source bulk menu in the browse screen.
 
 ### Difficulty estimation
 

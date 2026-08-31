@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../data/models/chapter.dart';
 import '../../data/models/novel.dart';
 import '../../providers/novels_provider.dart';
+import '../dictionary/jlpt_estimator.dart';
 import 'news_image_store.dart';
 import 'source_types.dart';
 import 'syosetu.dart';
@@ -42,7 +43,20 @@ class SourceImporter {
   /// Null when image capture isn't wanted (tests).
   final NewsImageStore? _images;
 
-  SourceImporter(this._novels, [this._images]);
+  /// Scores each article's difficulty once, at import, so the front page
+  /// never has to run the tokenizer while the reader is scrolling.
+  final JlptEstimator? _estimator;
+
+  SourceImporter(this._novels, [this._images, this._estimator]);
+
+  Future<void> _scoreDifficulty(Chapter chapter) async {
+    if (_estimator == null) return;
+    try {
+      chapter.jlptStats = await _estimator.estimate(chapter.originalText);
+    } catch (_) {
+      // A cold or unavailable tokenizer just means the badge estimates later.
+    }
+  }
 
   /// Resolve a chapter's lead image to something that will actually render:
   /// absolute, and — where the host needs the feed's session cookie — pulled
@@ -67,6 +81,7 @@ class SourceImporter {
   }) async {
     final chapter = await source.fetch(stub);
     await _settleImage(chapter, stub);
+    await _scoreDifficulty(chapter);
     final feedNovelId = 'feed:${source.id}';
 
     // Try to find an existing rolling novel for this feed.
@@ -122,6 +137,7 @@ class SourceImporter {
       try {
         final chapter = await source.fetch(stubs[i]);
         await _settleImage(chapter, stubs[i]);
+        await _scoreDifficulty(chapter);
         fetched.add(chapter);
       } catch (_) {
         // One unreachable article shouldn't cost the reader the other nine.

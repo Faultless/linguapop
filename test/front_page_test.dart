@@ -46,7 +46,83 @@ Future<void> pumpBand(
   await tester.pump();
 }
 
+/// A story on a given day, for the grouping tests.
+({String key, String label, DateTime? day}) day(int y, int m, int d) =>
+    (key: '$y-$m-$d', label: '$m月$d日', day: DateTime(y, m, d));
+
+List<Object> group3(List<({String key, String label, DateTime? day})> items,
+        {Set<String> collapsed = const {}, int bandSize = 4}) =>
+    buildDayRows(
+      items: items,
+      bandSize: bandSize,
+      collapsed: collapsed,
+      keyOf: (i) => i.key,
+      labelOf: (i) => i.label,
+      dayOf: (i) => i.day,
+    );
+
 void main() {
+  group('day grouping', () {
+    test('each day gets one header, followed by its bands', () {
+      final rows = group3([
+        day(2026, 8, 31), day(2026, 8, 31), day(2026, 8, 31),
+        day(2026, 8, 30),
+      ]);
+      expect(rows.whereType<DaySection>().map((s) => s.label),
+          ['8月31日', '8月30日']);
+      expect(rows.whereType<DaySection>().map((s) => s.count), [3, 1]);
+      // header, band, header, band
+      expect(rows.length, 4);
+    });
+
+    test('a day longer than one band is split into several', () {
+      final rows = group3(
+          [for (var i = 0; i < 9; i++) day(2026, 8, 31)], bandSize: 4);
+      final bands = rows.whereType<List<dynamic>>().toList();
+      expect(bands.length, 3);
+      expect(bands.map((b) => b.length), [4, 4, 1]);
+      expect(rows.whereType<DaySection>().single.count, 9);
+    });
+
+    test('a folded day keeps its header and drops its stories', () {
+      final rows = group3([
+        day(2026, 8, 31), day(2026, 8, 31),
+        day(2026, 8, 30),
+      ], collapsed: {'2026-8-31'});
+      expect(rows.whereType<DaySection>().map((s) => s.label),
+          ['8月31日', '8月30日']);
+      // Only the 30th contributes a band.
+      expect(rows.whereType<List<dynamic>>().length, 1);
+      // The header still reports what's inside the fold.
+      expect(rows.whereType<DaySection>().first.count, 2);
+    });
+
+    test('folding every day leaves only headers', () {
+      final rows = group3(
+        [day(2026, 8, 31), day(2026, 8, 30)],
+        collapsed: {'2026-8-31', '2026-8-30'},
+      );
+      expect(rows.every((r) => r is DaySection), isTrue);
+      expect(rows.length, 2);
+    });
+
+    test('an empty paper produces no rows', () {
+      expect(group3(const []), isEmpty);
+    });
+
+    test('the undated bucket has no fetchable date', () {
+      final rows = buildDayRows<String>(
+        items: ['a', 'b'],
+        bandSize: 4,
+        collapsed: const {},
+        keyOf: (_) => 'undated',
+        labelOf: (_) => '日付なし',
+        dayOf: (_) => null,
+      );
+      expect(rows.whereType<DaySection>().single.day, isNull);
+    });
+  });
+
   group('column count', () {
     test('phones always get exactly two columns', () {
       expect(FrontPageBand.columnsFor(360), 2);

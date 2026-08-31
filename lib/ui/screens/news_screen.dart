@@ -48,6 +48,10 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
   bool _cancelRequested = false;
   FeedSyncProgress? _progress;
 
+  /// Day keys the reader has rolled up. Session state — folding is a reading
+  /// gesture, not a setting.
+  final Set<String> _collapsedDays = <String>{};
+
   /// Last list we successfully rendered. The articles provider recomputes on
   /// every library write, and dropping to a spinner each time made a sync look
   /// like the page was reloading under the reader. Holding the previous
@@ -79,7 +83,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
     setState(() => _paper = ids[next < 0 ? next + ids.length : next]);
   }
 
-  Future<void> _fetch(FeedFetchMode mode) async {
+  Future<void> _fetch(FeedFetchMode mode, {DateTime? day}) async {
     if (_syncing) return;
     setState(() {
       _syncing = true;
@@ -89,6 +93,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
     final result = await ref.read(feedSyncProvider).run(
           sources: _selectedSources(),
           mode: mode,
+          day: day,
           onProgress: (p) {
             if (mounted) setState(() => _progress = p);
           },
@@ -104,29 +109,29 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
       ..showSnackBar(SnackBar(content: Text(result.summary)));
   }
 
+  /// The fetch sheet: today's edition, the quick catch-ups, and — once the
+  /// papers have been asked what they're still carrying — the back issues,
+  /// day by day with counts. Picking a day is the orderly way in; "latest N"
+  /// is the shortcut.
   Future<void> _pickFetchMode() async {
-    final mode = await showModalBottomSheet<FeedFetchMode>(
+    final sources = _selectedSources();
+    final result = await showModalBottomSheet<({FeedFetchMode mode, DateTime? day})>(
       context: context,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final m in FeedFetchMode.values)
-              ListTile(
-                leading: Icon(m == FeedFetchMode.today
-                    ? Icons.today_outlined
-                    : Icons.download_outlined),
-                title: Text(m.label),
-                subtitle: Text(m.description),
-                onTap: () => Navigator.of(ctx).pop(m),
-              ),
-          ],
-        ),
+      isScrollControlled: true,
+      builder: (ctx) => _FetchSheet(
+        survey: () => ref.read(feedSyncProvider).survey(sources: sources),
       ),
     );
-    if (mode != null) await _fetch(mode);
+    if (result != null) await _fetch(result.mode, day: result.day);
   }
+
+  Future<void> _fetchDay(DateTime day) =>
+      _fetch(FeedFetchMode.day, day: day);
+
+  void _toggleDay(String key) => setState(() {
+        if (!_collapsedDays.remove(key)) _collapsedDays.add(key);
+      });
 
   Future<void> _delete(NewsArticle a) async {
     await ref.read(sourceImporterProvider).removeArticle(
@@ -337,6 +342,9 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
                             onOpen: _open,
                             onDelete: _confirmDelete,
                             onFetch: _fetch,
+                            onFetchDay: _fetchDay,
+                            collapsedDays: _collapsedDays,
+                            onToggleDay: _toggleDay,
                             syncing: _syncing,
                             simple: simple,
                           )
@@ -435,6 +443,9 @@ class _FrontPage extends StatelessWidget {
   final void Function(NewsArticle) onOpen;
   final Future<void> Function(NewsArticle) onDelete;
   final Future<void> Function(FeedFetchMode) onFetch;
+  final Future<void> Function(DateTime) onFetchDay;
+  final Set<String> collapsedDays;
+  final void Function(String) onToggleDay;
   final bool syncing;
   final bool simple;
 
@@ -449,6 +460,9 @@ class _FrontPage extends StatelessWidget {
     required this.onOpen,
     required this.onDelete,
     required this.onFetch,
+    required this.onFetchDay,
+    required this.collapsedDays,
+    required this.onToggleDay,
     required this.syncing,
     this.simple = false,
   });
@@ -457,9 +471,21 @@ class _FrontPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final columns = FrontPageBand.columnsFor(width);
-    final rows = _buildRows(items, columns * 4);
+    final rows = buildDayRows<NewsArticle>(
+      items: items,
+      bandSize: columns * 4,
+      collapsed: collapsedDays,
+      keyOf: (a) => _dayKey(a.chapter.publishedAt),
+      labelOf: (a) => _dayLabel(a.chapter.publishedAt),
+      dayOf: (a) => _dayOf(a.chapter.publishedAt),
+    );
 
     return ListView.builder(
+      // Nothing in this list wants to be kept alive off-screen: every tile is
+      // cheap to rebuild now that difficulty is precomputed, and holding a
+      // few hundred article tiles resident is what makes a long paper stutter.
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 32),
       itemCount: rows.length + 1,
@@ -477,7 +503,17 @@ class _FrontPage extends StatelessWidget {
           );
         }
         final row = rows[i - 1];
-        if (row is String) return NewsSectionRule(label: row);
+        if (row is DaySection) {
+          return NewsDayHeader(
+            label: row.label,
+            count: row.count,
+            collapsed: collapsedDays.contains(row.key),
+            onToggle: () => onToggleDay(row.key),
+            onFetch: row.day == null || syncing
+                ? null
+                : () => onFetchDay(row.day!),
+          );
+        }
         final band = row as List<NewsArticle>;
         final byId = {for (final a in band) _entryId(a): a};
         return FrontPageBand(
@@ -491,31 +527,8 @@ class _FrontPage extends StatelessWidget {
     );
   }
 
-  /// Day-label strings interleaved with fixed-size bands of articles.
-  static List<Object> _buildRows(List<NewsArticle> items, int bandSize) {
-    final rows = <Object>[];
-    final buf = <NewsArticle>[];
-    void flush() {
-      for (var i = 0; i < buf.length; i += bandSize) {
-        rows.add(buf.sublist(i, (i + bandSize).clamp(0, buf.length)));
-      }
-      buf.clear();
-    }
-
-    String? lastDay;
-    for (final a in items) {
-      final day = _dayLabel(a.chapter.publishedAt);
-      if (day != lastDay) {
-        flush();
-        rows.add(day);
-        lastDay = day;
-      }
-      buf.add(a);
-    }
-    flush();
-    return rows;
-  }
 }
+
 
 class _FrontPageHeader extends StatelessWidget {
   final String title;
@@ -606,19 +619,149 @@ class _FrontPageHeader extends StatelessWidget {
 
 String _entryId(NewsArticle a) => '${a.novelId}/${a.chapter.id}';
 
+/// The lead, collapsed to one line. Only the head of the article is touched:
+/// the block clamps to three lines anyway, and running a whitespace regex
+/// over a few hundred full article bodies is not free.
+String _snippet(String text) {
+  final head = text.length <= 240 ? text : text.substring(0, 240);
+  return head.replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
 /// Project a stored feed article onto the layout-only model the front page
 /// widgets take.
 FrontPageItem _toItem(NewsArticle a, bool read, String sourceName) =>
     FrontPageItem(
       id: _entryId(a),
       title: a.chapter.title,
-      snippet: a.chapter.originalText.replaceAll(RegExp(r'\s+'), ' ').trim(),
+      snippet: _snippet(a.chapter.originalText),
       sourceName: sourceName,
       imageUrl: a.chapter.imageUrl,
       publishedAt: a.chapter.publishedAt,
       read: read,
       difficultyText: a.chapter.originalText,
+      stats: a.chapter.jlptStats,
     );
+
+/// Bottom sheet for "get me some paper": the day you're most likely to want,
+/// the quick catch-ups, and then the back issues the papers are still
+/// carrying — surveyed on open, so the list reflects what can actually be
+/// fetched rather than a guess.
+class _FetchSheet extends StatefulWidget {
+  final Future<List<DayAvailability>> Function() survey;
+  const _FetchSheet({required this.survey});
+
+  @override
+  State<_FetchSheet> createState() => _FetchSheetState();
+}
+
+class _FetchSheetState extends State<_FetchSheet> {
+  List<DayAvailability>? _days;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.survey().then((d) {
+      if (mounted) setState(() => _days = d);
+    }).catchError((Object e) {
+      if (mounted) setState(() => _error = e);
+    });
+  }
+
+  void _pick(FeedFetchMode mode, [DateTime? day]) =>
+      Navigator.of(context).pop((mode: mode, day: day));
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final days = _days;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      maxChildSize: 0.92,
+      builder: (ctx, ctrl) => ListView(
+        controller: ctrl,
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          ListTile(
+            leading: const Icon(Icons.today_outlined),
+            title: Text(FeedFetchMode.today.label),
+            subtitle: Text(FeedFetchMode.today.description),
+            onTap: () => _pick(FeedFetchMode.today),
+          ),
+          ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: Text(FeedFetchMode.latest10.label),
+            subtitle: Text(FeedFetchMode.latest10.description),
+            onTap: () => _pick(FeedFetchMode.latest10),
+          ),
+          ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: Text(FeedFetchMode.latest30.label),
+            subtitle: Text(FeedFetchMode.latest30.description),
+            onTap: () => _pick(FeedFetchMode.latest30),
+          ),
+          const Divider(height: 24),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text('BACK ISSUES',
+                style: NewsprintStyle.meta(cs, size: 10)
+                    .copyWith(letterSpacing: 1.6)),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Could not reach the papers: $_error',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      color: cs.onSurface.withValues(alpha: 0.6))),
+            )
+          else if (days == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                  child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2))),
+            )
+          else if (days.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Nothing dated on the wires right now.',
+                  style: TextStyle(
+                      fontSize: 12.5,
+                      color: cs.onSurface.withValues(alpha: 0.6))),
+            )
+          else
+            for (final d in days)
+              ListTile(
+                dense: true,
+                enabled: d.available > 0,
+                leading: Icon(Icons.event_note_outlined,
+                    color: d.available > 0
+                        ? cs.primary
+                        : cs.onSurface.withValues(alpha: 0.3)),
+                title: Text(
+                  '${d.day.year}年${d.day.month}月${d.day.day}日'
+                  '（${_weekdayKanji[d.day.weekday - 1]}）',
+                  style: const TextStyle(
+                      fontFamily: NewsprintStyle.serif,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text(d.available > 0
+                    ? '${d.available}件 new · ${d.total}件 on the wire'
+                    : 'all ${d.total}件 already in your library'),
+                onTap: d.available > 0
+                    ? () => _pick(FeedFetchMode.day, d.day)
+                    : null,
+              ),
+        ],
+      ),
+    );
+  }
+}
 
 class _PaperRack extends StatelessWidget {
   final List<({String id, String name, int unread})> papers;
@@ -796,6 +939,19 @@ String _dayLabel(int? publishedAt) {
   return '${day.month}月${day.day}日';
 }
 
+/// Stable identity for a day bucket, used for fold state.
+String _dayKey(int? publishedAt) {
+  final d = _dayOf(publishedAt);
+  if (d == null) return 'undated';
+  return '${d.year}-${d.month}-${d.day}';
+}
+
+DateTime? _dayOf(int? publishedAt) {
+  if (publishedAt == null) return null;
+  final dt = DateTime.fromMillisecondsSinceEpoch(publishedAt);
+  return DateTime(dt.year, dt.month, dt.day);
+}
+
 const _weekdayKanji = ['月', '火', '水', '木', '金', '土', '日'];
 
 /// "2026年8月31日（月）" — the dateline every Japanese daily runs.
@@ -887,6 +1043,7 @@ class _ArticleRow extends StatelessWidget {
         const SizedBox(width: 8),
         DifficultyBadge(
           text: article.chapter.originalText,
+          stats: article.chapter.jlptStats,
           showBar: !big,
         ),
       ],

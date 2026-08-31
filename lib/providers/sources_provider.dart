@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/novel.dart' show SourceType;
 import '../services/sources/feed_sync.dart';
+import 'jlpt_provider.dart';
 import '../services/sources/news_image_store.dart';
 import '../services/sources/session_client.dart';
 import '../services/sources/source_import.dart';
@@ -26,6 +27,7 @@ final newsImageStoreProvider = Provider<NewsImageStore>(
 final sourceImporterProvider = Provider<SourceImporter>((ref) => SourceImporter(
       ref.read(novelsProvider.notifier),
       ref.read(newsImageStoreProvider),
+      ref.read(jlptEstimatorProvider),
     ));
 
 /// Bulk feed fetcher ("today's paper", "latest 10") shared by the news hub

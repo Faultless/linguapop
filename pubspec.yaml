@@ -1,7 +1,7 @@
 name: linguapop
 description: "A Japanese language-learning novel reader."
 publish_to: 'none'
-version: 7.2.0+10
+version: 7.3.0+11
 
 environment:
   sdk: ^3.11.3
@@ -55,6 +55,8 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Reads the F-Droid build recipe in test/fdroid_metadata_test.dart.
+  yaml: ^3.1.2
 
 flutter:
   uses-material-design: true

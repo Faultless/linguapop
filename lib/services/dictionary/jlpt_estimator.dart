@@ -13,9 +13,12 @@ import 'jlpt_lookup.dart';
 /// text so list rebuilds are free.
 class JlptEstimator {
   static const _maxCacheEntries = 300;
-  // Long texts converge quickly — analyzing the first few thousand chars is
-  // enough for a stable level estimate and keeps the FFI call cheap.
-  static const _maxAnalyzedChars = 4000;
+
+  /// How much of a text is analyzed. Long texts converge quickly, and this is
+  /// also the window used when the estimate is precomputed at import time —
+  /// both paths must agree or the same article would score differently
+  /// depending on when it was imported.
+  static const sampleChars = 1500;
 
   final JpTokenizer _tokenizer;
   final JlptLookup _lookup;
@@ -45,12 +48,14 @@ class JlptEstimator {
     return estimateSync(text);
   }
 
+  /// The leading slice of [text] that gets analyzed.
+  static String sample(String text) =>
+      text.length <= sampleChars ? text : text.substring(0, sampleChars);
+
   /// Synchronous variant for callers that already know the pipeline is warm.
   JlptStats? estimateSync(String text) {
     if (_tokenizer.status != TokenizerStatus.ready) return null;
-    final key = text.length <= _maxAnalyzedChars
-        ? text
-        : text.substring(0, _maxAnalyzedChars);
+    final key = sample(text);
 
     final hit = _cache.remove(key);
     if (hit != null) {

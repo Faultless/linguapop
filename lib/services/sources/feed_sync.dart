@@ -13,6 +13,10 @@ enum FeedFetchMode {
 
   /// The newest 30 unimported items.
   latest30,
+
+  /// Everything published on one particular calendar day. Paired with the
+  /// `day` argument to [FeedSync.run].
+  day,
 }
 
 extension FeedFetchModeLabel on FeedFetchMode {
@@ -20,6 +24,7 @@ extension FeedFetchModeLabel on FeedFetchMode {
         FeedFetchMode.today => "Today's paper",
         FeedFetchMode.latest10 => 'Latest 10',
         FeedFetchMode.latest30 => 'Latest 30',
+        FeedFetchMode.day => 'A single day',
       };
 
   String get description => switch (this) {
@@ -27,6 +32,7 @@ extension FeedFetchModeLabel on FeedFetchMode {
           "Everything from today — or the latest edition if today's isn't out",
         FeedFetchMode.latest10 => 'The 10 newest stories you don\'t have yet',
         FeedFetchMode.latest30 => 'The 30 newest stories you don\'t have yet',
+        FeedFetchMode.day => 'Every story a paper filed that day',
       };
 }
 
@@ -61,6 +67,21 @@ class FeedSyncResult {
     }
     return b.toString();
   }
+}
+
+/// One day's worth of back issues across the papers surveyed.
+class DayAvailability {
+  final DateTime day;
+  int _available = 0;
+  int _total = 0;
+
+  DayAvailability({required this.day});
+
+  /// Stories filed that day that aren't in the library yet.
+  int get available => _available;
+
+  /// Stories filed that day that the feeds are still carrying at all.
+  int get total => _total;
 }
 
 /// Live progress of a running sync, so the UI can show which paper is being
@@ -98,6 +119,7 @@ class FeedSync {
   Future<FeedSyncResult> run({
     required List<FeedSource> sources,
     required FeedFetchMode mode,
+    DateTime? day,
     void Function(FeedSyncProgress)? onProgress,
     bool Function()? isCancelled,
   }) async {
@@ -116,7 +138,7 @@ class FeedSync {
         onProgress?.call(FeedSyncProgress(source.name, 0, 0));
         final stubs = await source.list();
         final imported = await _imported(source.id);
-        final fresh = selectForMode(stubs, imported, mode);
+        final fresh = selectForMode(stubs, imported, mode, day: day);
         considered += fresh.length;
         if (fresh.isEmpty) continue;
         // One commit per source: the front page redraws once when the batch
@@ -149,8 +171,9 @@ class FeedSync {
   static List<ArticleStub> selectForMode(
     List<ArticleStub> stubs,
     Set<String> imported,
-    FeedFetchMode mode,
-  ) {
+    FeedFetchMode mode, {
+    DateTime? day,
+  }) {
     final fresh = stubs.where((s) => !imported.contains(s.sourceUrl)).toList()
       ..sort((a, b) => (b.publishedAt ?? 0).compareTo(a.publishedAt ?? 0));
     switch (mode) {
@@ -175,7 +198,49 @@ class FeedSync {
         return fresh.take(10).toList();
       case FeedFetchMode.latest30:
         return fresh.take(30).toList();
+      case FeedFetchMode.day:
+        if (day == null) return const [];
+        return _sameDayAs(
+                fresh.where((s) => s.publishedAt != null).toList(),
+                DateTime(day.year, day.month, day.day).millisecondsSinceEpoch)
+            .take(maxPerSource)
+            .toList();
     }
+  }
+
+  /// What's on offer, grouped by the day it was filed.
+  ///
+  /// Lists every source once and buckets the stories not already imported by
+  /// publication day, newest first. This is what makes fetching orderly: you
+  /// pick "8月30日, 14 stories" instead of "the latest N of whatever the
+  /// wires happen to be carrying".
+  Future<List<DayAvailability>> survey({
+    required List<FeedSource> sources,
+    void Function(FeedSyncProgress)? onProgress,
+  }) async {
+    final byDay = <int, DayAvailability>{};
+    for (final source in sources) {
+      try {
+        onProgress?.call(FeedSyncProgress(source.name, 0, 0));
+        final stubs = await source.list();
+        final imported = await _imported(source.id);
+        for (final stub in stubs) {
+          final at = stub.publishedAt;
+          if (at == null) continue;
+          final d = DateTime.fromMillisecondsSinceEpoch(at);
+          final key =
+              DateTime(d.year, d.month, d.day).millisecondsSinceEpoch;
+          final entry = byDay[key] ??= DayAvailability(day: DateTime(d.year, d.month, d.day));
+          entry._total++;
+          if (!imported.contains(stub.sourceUrl)) entry._available++;
+        }
+      } catch (_) {
+        // A paper that won't answer just doesn't contribute back issues.
+      }
+    }
+    final out = byDay.values.toList()
+      ..sort((a, b) => b.day.compareTo(a.day));
+    return out;
   }
 
   /// Every stub published on the same calendar day as [epochMs].
