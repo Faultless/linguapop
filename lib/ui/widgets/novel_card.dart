@@ -36,6 +36,9 @@ class NovelCard extends StatelessWidget {
     final w = width;
 
     if (w != null) {
+      // A newspaper carries its own name on the masthead — repeating it under
+      // the tile is just noise on the shelf.
+      final captioned = meta.sourceType != SourceType.feed;
       return InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
@@ -44,7 +47,7 @@ class NovelCard extends StatelessWidget {
           children: [
             Stack(
               children: [
-                _CoverWithShadow(meta: meta, width: w),
+                _CoverWithShadow(meta: meta, width: w, leaning: true),
                 if (jlptBucket != null)
                   Positioned(
                     bottom: 5,
@@ -70,20 +73,23 @@ class NovelCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 5),
-            Expanded(
-              child: Text(
-                meta.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  height: 1.18,
-                  fontWeight: FontWeight.w600,
-                  color: cs.onSurface.withValues(alpha: 0.9),
+            if (captioned) ...[
+              const SizedBox(height: 5),
+              Expanded(
+                child: Text(
+                  meta.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.18,
+                    fontWeight: FontWeight.w600,
+                    color: cs.onSurface.withValues(alpha: 0.9),
+                  ),
                 ),
               ),
-            ),
+            ] else
+              const Spacer(),
           ],
         ),
       );
@@ -449,18 +455,32 @@ class _FavoriteHeart extends StatelessWidget {
 class _CoverWithShadow extends StatelessWidget {
   final NovelMeta meta;
   final double? width;
-  const _CoverWithShadow({required this.meta, this.width});
+
+  /// Tip the cover back a few degrees about its bottom edge, as though it
+  /// were standing on the shelf leaning against the wall behind. The shadow
+  /// tightens under the foot to match.
+  final bool leaning;
+
+  const _CoverWithShadow({
+    required this.meta,
+    this.width,
+    this.leaning = false,
+  });
+
+  /// Radians. Small on purpose — enough to read as depth, not enough to make
+  /// a masthead look crooked.
+  static const _lean = 0.075;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    final cover = DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(6),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: leaning ? 0.26 : 0.18),
+            blurRadius: leaning ? 10 : 8,
+            offset: Offset(0, leaning ? 5 : 3),
           ),
         ],
       ),
@@ -472,6 +492,16 @@ class _CoverWithShadow extends StatelessWidget {
               height: width! * 3 / 2,
               child: BookCover(meta: meta, width: width!),
             ),
+    );
+    if (!leaning) return cover;
+    return Transform(
+      alignment: Alignment.bottomCenter,
+      // setEntry(3, 2, …) is the perspective term; without it rotateX is an
+      // orthographic squash with no sense of depth.
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.0016)
+        ..rotateX(_lean),
+      child: cover,
     );
   }
 }

@@ -20,14 +20,19 @@ class NewsprintStyle {
         color: cs.primary,
       );
 
+  /// Headline type.
+  ///
+  /// Capped at w700. Android's serif family has no CJK coverage, so Japanese
+  /// falls through to Noto Serif/Sans CJK, which ships Regular and Bold and
+  /// *synthesises* anything heavier — at w800+ the strokes of a dense kanji
+  /// smear into each other and the headline stops being readable.
   static TextStyle headline(ColorScheme cs,
           {double size = 16, bool read = false}) =>
       TextStyle(
         fontFamily: serif,
         fontSize: size,
-        height: 1.18,
-        fontWeight: read ? FontWeight.w600 : FontWeight.w800,
-        letterSpacing: -0.1,
+        height: 1.3,
+        fontWeight: read ? FontWeight.w500 : FontWeight.w700,
         color: read ? cs.onSurface.withValues(alpha: 0.6) : cs.onSurface,
       );
 
@@ -448,8 +453,8 @@ class NewspaperFront extends StatelessWidget {
                 fontFamily: NewsprintStyle.serif,
                 fontSize: mastheadSize,
                 height: 1.05,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.3,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
                 color: ink,
               ),
             ),

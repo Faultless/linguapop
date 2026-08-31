@@ -62,26 +62,37 @@ class ReaderPrefsNotifier extends StateNotifier<ReaderPrefs> {
   Future<void> setSimpleMode(bool v) =>
       update((p) => p.copyWith(simpleMode: v));
 
-  /// Toggle one feed source on the newsstand. An empty list means "carry
-  /// everything", so the first time a source is switched off we have to
-  /// materialise the full list before removing it.
-  Future<void> setSourceEnabled(String id, bool enabled, List<String> allIds) =>
+  /// Toggle one feed source on the newsstand.
+  ///
+  /// An empty list means "whatever the app ships on by default", so a source
+  /// added in a later version appears without the user opting in. The first
+  /// deviation from the defaults materialises the list.
+  Future<void> setSourceEnabled(
+          String id, bool enabled, List<String> defaultIds) =>
       update((p) {
         final current =
-            p.enabledSourceIds.isEmpty ? allIds : p.enabledSourceIds;
+            p.enabledSourceIds.isEmpty ? defaultIds : p.enabledSourceIds;
         final next = [...current];
         if (enabled) {
           if (!next.contains(id)) next.add(id);
         } else {
           next.remove(id);
         }
-        // Back to carrying everything: store the "all" sentinel again so a
-        // newly added adapter shows up automatically.
-        if (next.length == allIds.length && next.toSet().containsAll(allIds)) {
+        // Back to exactly the defaults: store the sentinel again.
+        if (next.length == defaultIds.length &&
+            next.toSet().containsAll(defaultIds)) {
           return p.copyWith(enabledSourceIds: const []);
         }
         return p.copyWith(enabledSourceIds: next);
       });
+
+  /// Ids of the feeds actually carried, resolving the "empty = defaults"
+  /// sentinel. [defaultIds] comes from the source registry.
+  static Set<String> carriedSources(
+          ReaderPrefs prefs, Iterable<String> defaultIds) =>
+      prefs.enabledSourceIds.isEmpty
+          ? defaultIds.toSet()
+          : prefs.enabledSourceIds.toSet();
 
   Future<void> setShowRubies(bool v) => update((p) => p.copyWith(showRubies: v));
 

@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../../data/models/chapter.dart';
 import '../../data/models/novel.dart';
 import '../../providers/novels_provider.dart';
+import 'news_image_store.dart';
 import 'source_types.dart';
 import 'syosetu.dart';
 
@@ -36,7 +37,27 @@ class ImportTask {
 
 class SourceImporter {
   final NovelsNotifier _novels;
-  SourceImporter(this._novels);
+
+  /// Downloads article images through the adapters' authenticated client.
+  /// Null when image capture isn't wanted (tests).
+  final NewsImageStore? _images;
+
+  SourceImporter(this._novels, [this._images]);
+
+  /// Resolve a chapter's lead image to something that will actually render:
+  /// absolute, and — where the host needs the feed's session cookie — pulled
+  /// down now and stored locally. Clears the URL when neither works, so the
+  /// front page shows a text-only story instead of a broken box.
+  Future<void> _settleImage(Chapter chapter, ArticleStub stub) async {
+    chapter.imageUrl ??= stub.imageUrl;
+    final url = absoluteImageUrl(
+        chapter.imageUrl, chapter.sourceUrl ?? stub.sourceUrl);
+    if (url == null || _images == null || url.startsWith(NewsImageStore.scheme)) {
+      chapter.imageUrl = url;
+      return;
+    }
+    chapter.imageUrl = await _images.capture(url, '${stub.id}-${url.hashCode}');
+  }
 
   /// Import a single NHK Easy-style article into a rolling "feed" novel
   /// keyed by `sourceId`. Re-importing the same article is a no-op.
@@ -45,13 +66,7 @@ class SourceImporter {
     required ArticleStub stub,
   }) async {
     final chapter = await source.fetch(stub);
-    // Fall back to the stub's image when the adapter didn't set one from the
-    // article page itself, then make sure whatever we ended up with is an
-    // absolute URL — feed payloads carry relative and protocol-relative
-    // paths, which Image.network can't load.
-    chapter.imageUrl ??= stub.imageUrl;
-    chapter.imageUrl =
-        absoluteImageUrl(chapter.imageUrl, chapter.sourceUrl ?? stub.sourceUrl);
+    await _settleImage(chapter, stub);
     final feedNovelId = 'feed:${source.id}';
 
     // Try to find an existing rolling novel for this feed.
@@ -106,9 +121,7 @@ class SourceImporter {
       onProgress?.call(i + 1, stubs.length);
       try {
         final chapter = await source.fetch(stubs[i]);
-        chapter.imageUrl ??= stubs[i].imageUrl;
-        chapter.imageUrl = absoluteImageUrl(
-            chapter.imageUrl, chapter.sourceUrl ?? stubs[i].sourceUrl);
+        await _settleImage(chapter, stubs[i]);
         fetched.add(chapter);
       } catch (_) {
         // One unreachable article shouldn't cost the reader the other nine.
@@ -156,6 +169,9 @@ class SourceImporter {
     final remaining =
         body.chapters.where((c) => c.sourceUrl != sourceUrl).toList();
     if (remaining.length == body.chapters.length) return; // not present
+    for (final c in body.chapters) {
+      if (c.sourceUrl == sourceUrl) await NewsImageStore.forget(c.imageUrl);
+    }
     if (remaining.isEmpty) {
       await _novels.remove(feedNovelId);
       return;

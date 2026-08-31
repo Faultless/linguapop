@@ -62,7 +62,7 @@ class ReaderSettingsScreen extends ConsumerWidget {
             icon: Icons.newspaper_outlined,
             title: 'Papers',
             subtitle: prefs.enabledSourceIds.isEmpty
-                ? 'All papers on the stand'
+                ? 'Default papers on the stand'
                 : '${prefs.enabledSourceIds.length} on the stand',
             onTap: () => push(const SourceManagerScreen()),
           ),

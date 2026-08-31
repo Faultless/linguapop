@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/novel.dart' show SourceType;
 import '../services/sources/feed_sync.dart';
+import '../services/sources/news_image_store.dart';
 import '../services/sources/session_client.dart';
 import '../services/sources/source_import.dart';
 import '../services/sources/source_registry.dart';
@@ -19,8 +20,13 @@ final sessionClientProvider = Provider<SessionClient>((ref) {
 final sourceRegistryProvider = Provider<SourceRegistry>(
     (ref) => SourceRegistry(ref.read(sessionClientProvider)));
 
-final sourceImporterProvider = Provider<SourceImporter>(
-    (ref) => SourceImporter(ref.read(novelsProvider.notifier)));
+final newsImageStoreProvider = Provider<NewsImageStore>(
+    (ref) => NewsImageStore(ref.read(sessionClientProvider)));
+
+final sourceImporterProvider = Provider<SourceImporter>((ref) => SourceImporter(
+      ref.read(novelsProvider.notifier),
+      ref.read(newsImageStoreProvider),
+    ));
 
 /// Bulk feed fetcher ("today's paper", "latest 10") shared by the news hub
 /// and the browse screen.

@@ -8,6 +8,7 @@ class Boxes {
   static const jpdict = 'jpdict';          // key = query
   static const vocab = 'vocab';            // single key 'list' = List<json>
   static const covers = 'covers';          // key = novel id, value = base64 image bytes
+  static const newsImages = 'news_images'; // key = article key, value = image bytes
 }
 
 class Storage {
@@ -20,6 +21,7 @@ class Storage {
       Hive.openBox<dynamic>(Boxes.jpdict),
       Hive.openBox<dynamic>(Boxes.vocab),
       Hive.openBox<dynamic>(Boxes.covers),
+      Hive.openBox<dynamic>(Boxes.newsImages),
     ]);
   }
 
@@ -29,4 +31,5 @@ class Storage {
   static Box<dynamic> jpdict() => Hive.box<dynamic>(Boxes.jpdict);
   static Box<dynamic> vocab() => Hive.box<dynamic>(Boxes.vocab);
   static Box<dynamic> covers() => Hive.box<dynamic>(Boxes.covers);
+  static Box<dynamic> newsImages() => Hive.box<dynamic>(Boxes.newsImages);
 }

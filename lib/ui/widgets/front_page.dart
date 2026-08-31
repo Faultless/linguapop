@@ -141,7 +141,7 @@ class FrontPageBand extends StatelessWidget {
     var h = 18.0; // meta line
     h += titleLines * headlineSize * 1.18 + 6;
     if ((item.imageUrl ?? '').isNotEmpty ||
-        FrontPageStory.wantsPlaceholder(item.id)) {
+        (item.imageUrl == null && FrontPageStory.wantsPlaceholder(item.id))) {
       h += colWidth * 0.58 + 8;
     }
     h += 3 * 12 * 1.34; // snippet
@@ -183,7 +183,7 @@ class _ColumnRulesPainter extends CustomPainter {
 
 /// One story on the front page: meta line, serif headline, optional cut, and
 /// a short lead paragraph, closed by a hairline rule.
-class FrontPageStory extends StatelessWidget {
+class FrontPageStory extends StatefulWidget {
   final FrontPageItem item;
   final bool showSource;
   final bool showDifficulty;
@@ -202,11 +202,38 @@ class FrontPageStory extends StatelessWidget {
   });
 
   @override
+  State<FrontPageStory> createState() => _FrontPageStoryState();
+
+  /// Whether a story with no scrapeable image still gets a drawn stand-in.
+  ///
+  /// Not every one: a page where every single story carries a picture box
+  /// looks like a template, and a page with none looks broken. Two in three,
+  /// picked deterministically from the story id so a given story always looks
+  /// the same.
+  static bool wantsPlaceholder(String id) => stableSeed(id) % 3 != 0;
+}
+
+class _FrontPageStoryState extends State<FrontPageStory> {
+  /// Set once the image turns out not to exist — an evicted local capture, or
+  /// a host that won't serve it. The story then runs text-only rather than
+  /// holding a grey rectangle on the page.
+  bool _noImage = false;
+
+  @override
+  void didUpdateWidget(covariant FrontPageStory old) {
+    super.didUpdateWidget(old);
+    if (old.item.imageUrl != widget.item.imageUrl) _noImage = false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final showSource = widget.showSource;
+    final columnWidth = widget.columnWidth;
     final cs = Theme.of(context).colorScheme;
     final read = item.read;
     final time = frontPageTimeLabel(item.publishedAt);
-    final image = item.imageUrl ?? '';
+    final image = _noImage ? '' : (item.imageUrl ?? '');
     final cutHeight = columnWidth * 0.56;
 
     Widget? cut;
@@ -216,14 +243,21 @@ class FrontPageStory extends StatelessWidget {
         width: double.infinity,
         height: cutHeight,
         radius: 0,
+        onUnavailable: () {
+          if (mounted) setState(() => _noImage = true);
+        },
       );
-    } else if (wantsPlaceholder(item.id)) {
+    } else if (item.imageUrl == null &&
+        FrontPageStory.wantsPlaceholder(item.id)) {
+      // Only for stories the source never offered a picture for. A story whose
+      // picture failed to load goes text-only instead — a drawn stand-in there
+      // would be pretending we had something.
       cut = NewsprintPlaceholder(seedText: item.title, height: cutHeight);
     }
 
     return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       child: Padding(
         padding: const EdgeInsets.only(top: 10, bottom: 12),
         child: Column(
@@ -247,7 +281,7 @@ class FrontPageStory extends StatelessWidget {
                             : cs.primary),
                   ),
                 const Spacer(),
-                if (showDifficulty)
+                if (widget.showDifficulty)
                   DifficultyBadge(text: item.difficultyText, fontSize: 8.5),
               ],
             ),
@@ -300,14 +334,6 @@ class FrontPageStory extends StatelessWidget {
       ),
     );
   }
-
-  /// Whether a story with no scrapeable image still gets a drawn stand-in.
-  ///
-  /// Not every one: a page where every single story carries a picture box
-  /// looks like a template, and a page with none looks broken. Two in three,
-  /// picked deterministically from the story id so a given story always looks
-  /// the same.
-  static bool wantsPlaceholder(String id) => stableSeed(id) % 3 != 0;
 }
 
 String frontPageTimeLabel(int? publishedAt) {

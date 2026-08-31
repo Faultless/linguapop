@@ -9,8 +9,10 @@ import '../widgets/newspaper.dart';
 /// Which papers the newsstand carries.
 ///
 /// Deliberately the only source-configuration surface in reading mode: a list
-/// of outlets with a switch each. Everything is on by default, so a fresh
-/// install has a full newsstand without a setup step.
+/// of outlets with a switch each. A handful are on out of the box — NHK's easy
+/// edition, NHK's main wire, and the Mainichi's breaking desk — and the rest
+/// are here to be switched on, so the stand starts readable instead of
+/// exhaustive.
 class SourceManagerScreen extends ConsumerWidget {
   const SourceManagerScreen({super.key});
 
@@ -22,42 +24,45 @@ class SourceManagerScreen extends ConsumerWidget {
     final notifier = ref.read(readerPrefsProvider.notifier);
 
     final feeds = registry.feedSources.toList();
-    final allIds = [for (final s in feeds) s.id];
-    final enabled = prefs.enabledSourceIds.isEmpty
-        ? allIds.toSet()
-        : prefs.enabledSourceIds.toSet();
+    final defaultIds = registry.defaultFeedIds.toList();
+    final carried =
+        ReaderPrefsNotifier.carriedSources(prefs, registry.defaultFeedIds);
+
+    // Carried papers first so the stand you actually have is at the top,
+    // then the rest in registry order (flagships before desk feeds).
+    final on = feeds.where((s) => carried.contains(s.id)).toList();
+    final off = feeds.where((s) => !carried.contains(s.id)).toList();
+
+    Widget tile(FeedSource s) => _SourceTile(
+          source: s,
+          enabled: carried.contains(s.id),
+          onChanged: (v) => notifier.setSourceEnabled(s.id, v, defaultIds),
+        );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Papers')),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: const EdgeInsets.only(bottom: 40),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
-              'Papers on the stand. Switching one off hides its stories from '
-              'the front page and skips it when fetching — nothing already '
-              'downloaded is deleted.',
+              'Switching a paper off hides its stories from the front page and '
+              'skips it when fetching. Nothing already downloaded is deleted.',
               style: TextStyle(
                   fontSize: 12.5,
                   height: 1.4,
                   color: cs.onSurface.withValues(alpha: 0.65)),
             ),
           ),
-          const SizedBox(height: 6),
-          for (final s in feeds)
-            _SourceTile(
-              source: s,
-              enabled: enabled.contains(s.id),
-              onChanged: (v) => notifier.setSourceEnabled(s.id, v, allIds),
-            ),
+          _Heading(label: 'ON THE STAND · ${on.length}'),
+          for (final s in on) tile(s),
+          if (off.isNotEmpty) ...[
+            _Heading(label: 'ALSO AVAILABLE · ${off.length}'),
+            for (final s in off) tile(s),
+          ],
           const Divider(height: 32),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text('LIBRARIES',
-                style: NewsprintStyle.meta(cs, size: 10)
-                    .copyWith(letterSpacing: 1.6)),
-          ),
+          _Heading(label: 'LIBRARIES'),
           for (final s in registry.searchSources)
             ListTile(
               title: Text(s.nativeName ?? s.name),
@@ -66,6 +71,22 @@ class SourceManagerScreen extends ConsumerWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _Heading extends StatelessWidget {
+  final String label;
+  const _Heading({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 6),
+      child: Text(label,
+          style:
+              NewsprintStyle.meta(cs, size: 10).copyWith(letterSpacing: 1.6)),
     );
   }
 }
@@ -86,21 +107,20 @@ class _SourceTile extends StatelessWidget {
     return SwitchListTile(
       value: enabled,
       onChanged: onChanged,
+      dense: true,
       title: Text(
         source.nativeName ?? source.name,
         style: const TextStyle(
             fontFamily: NewsprintStyle.serif,
-            fontSize: 16,
-            fontWeight: FontWeight.w800),
+            fontSize: 15.5,
+            fontWeight: FontWeight.w700),
       ),
       subtitle: Text(
-        source.nativeName == null
-            ? (source.description ?? source.name)
-            : '${source.name} · ${source.description ?? ""}'.trim(),
+        source.description ?? source.name,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style:
-            TextStyle(fontSize: 12, color: cs.onSurface.withValues(alpha: 0.6)),
+        style: TextStyle(
+            fontSize: 11.5, color: cs.onSurface.withValues(alpha: 0.6)),
       ),
     );
   }

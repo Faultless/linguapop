@@ -69,8 +69,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   Future<void> _load() async {
     final meta = _meta();
-    final body =
-        await ref.read(novelsProvider.notifier).loadBody(widget.novelId);
+    final body = await ref
+        .read(novelsProvider.notifier)
+        .loadBody(widget.novelId);
     if (!mounted) return;
     final target = widget.initialChapter ?? meta.lastReadChapter;
     setState(() {
@@ -82,7 +83,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     });
   }
 
-  NovelMeta _meta() => ref.read(novelsProvider).firstWhere(
+  NovelMeta _meta() => ref
+      .read(novelsProvider)
+      .firstWhere(
         (m) => m.id == widget.novelId,
         orElse: () => NovelMeta(id: widget.novelId, title: '?', addedAt: 0),
       );
@@ -98,7 +101,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   Future<void> _persistProgress() async {
     final m = ref.read(novelsProvider.notifier).findById(widget.novelId);
     if (m == null) return;
-    await ref.read(novelsProvider.notifier).updateMeta(
+    await ref
+        .read(novelsProvider.notifier)
+        .updateMeta(
           m.copyWith(
             lastReadChapter: _chapterIdx,
             lastReadOffset: _position,
@@ -200,7 +205,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     } catch (e) {
       if (!mounted || reqId != _selectionRequestId) return;
       setState(() {
-        _selectionTranslation = '⚠ ${e.toString().replaceFirst("Exception: ", "")}';
+        _selectionTranslation =
+            '⚠ ${e.toString().replaceFirst("Exception: ", "")}';
         _selectionTranslating = false;
       });
     }
@@ -264,12 +270,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (!mounted) return;
     if (error is TranslateCancelled) {
       messenger.showSnackBar(
-          const SnackBar(content: Text('Translation cancelled.')));
+        const SnackBar(content: Text('Translation cancelled.')),
+      );
       return;
     }
     if (error != null) {
       messenger.showSnackBar(
-          SnackBar(content: Text('Translation failed: $error')));
+        SnackBar(content: Text('Translation failed: $error')),
+      );
       return;
     }
 
@@ -301,14 +309,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         .read(readerPrefsProvider.notifier)
         .setViewMode(ReaderViewMode.parallel);
     messenger.showSnackBar(
-        const SnackBar(content: Text('Chapter translated.')));
+      const SnackBar(content: Text('Chapter translated.')),
+    );
   }
 
   /// Where the back arrow goes. News articles came from a paper's front
   /// page, so that's where "back" belongs — not the library.
   String _backRoute(NovelMeta meta) {
     if (meta.sourceType == SourceType.feed) {
-      final paper = meta.sourceId ??
+      final paper =
+          meta.sourceId ??
           (meta.id.startsWith('feed:') ? meta.id.substring(5) : meta.id);
       return '/news?paper=$paper';
     }
@@ -333,125 +343,136 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     final isPaged = prefs.layout == ReaderLayout.paged;
 
-    return Scaffold(
-      // Support hardware/system back navigation via PopScope (handled by
-      // the router automatically) plus keyboard shortcuts on desktop.
-      body: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.arrowRight):
-              () => _gotoChapter(_chapterIdx + 1),
-          const SingleActivator(LogicalKeyboardKey.arrowLeft):
-              () => _gotoChapter(_chapterIdx - 1),
-          const SingleActivator(LogicalKeyboardKey.keyH): _toggleChrome,
-        },
-        child: Focus(
-          autofocus: true,
-          child: SafeArea(
-            child: Column(
-              children: [
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  child: _chromeVisible
-                      ? _TopBar(
-                          title: chapter.title,
-                          onBack: () => context.go(_backRoute(meta)),
-                          onSettings: () => context
-                              .go('/reader/${widget.novelId}/settings'),
-                          onChapters: () => _showChapterPicker(body.chapters),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-                Expanded(
-                  child: SelectionArea(
-                    focusNode: _selectionFocus,
-                    onSelectionChanged: (selected) =>
-                        _onSelectionChanged(selected?.plainText ?? ''),
-                    child: isPaged
-                        ? _PagedChapterView(
-                            key: ValueKey('paged-${chapter.id}'),
-                            chapter: chapter,
-                            chapterIndex: _chapterIdx,
-                            chapterCount: body.chapters.length,
-                            initialPage: _position,
-                            prefs: prefs,
-                            novelId: widget.novelId,
-                            novelTitle: meta.title,
-                            onPageChanged: _onPositionChanged,
-                            onAdvanceChapter: () =>
-                                _gotoChapter(_chapterIdx + 1),
-                            onRetreatChapter: () => _gotoChapter(
-                              _chapterIdx - 1,
-                              positionWithin: -1,
+    // The reader is entered with `go`, which replaces the stack, so the system
+    // back gesture would otherwise land on the library. Send it where the top
+    // bar's arrow goes — back to the paper the story came from.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || !context.mounted) return;
+        context.go(_backRoute(meta));
+      },
+      child: Scaffold(
+        // Keyboard shortcuts on desktop.
+        body: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+                _gotoChapter(_chapterIdx + 1),
+            const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+                _gotoChapter(_chapterIdx - 1),
+            const SingleActivator(LogicalKeyboardKey.keyH): _toggleChrome,
+          },
+          child: Focus(
+            autofocus: true,
+            child: SafeArea(
+              child: Column(
+                children: [
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    child: _chromeVisible
+                        ? _TopBar(
+                            title: chapter.title,
+                            onBack: () => context.go(_backRoute(meta)),
+                            onSettings: () => context.go(
+                              '/reader/${widget.novelId}/settings',
                             ),
-                            onCenterTap: _onBackgroundTap,
-                            onDoubleTap: _toggleChrome,
+                            onChapters: () => _showChapterPicker(body.chapters),
                           )
-                        : _ScrollChapterView(
-                            key: ValueKey('scroll-${chapter.id}'),
-                            chapter: chapter,
-                            prefs: prefs,
-                            initialOffset: _position.toDouble(),
-                            novelId: widget.novelId,
-                            novelTitle: meta.title,
-                            chapterIndex: _chapterIdx,
-                            nextTitle: _chapterIdx < body.chapters.length - 1
-                                ? body.chapters[_chapterIdx + 1].title
+                        : const SizedBox.shrink(),
+                  ),
+                  Expanded(
+                    child: SelectionArea(
+                      focusNode: _selectionFocus,
+                      onSelectionChanged: (selected) =>
+                          _onSelectionChanged(selected?.plainText ?? ''),
+                      child: isPaged
+                          ? _PagedChapterView(
+                              key: ValueKey('paged-${chapter.id}'),
+                              chapter: chapter,
+                              chapterIndex: _chapterIdx,
+                              chapterCount: body.chapters.length,
+                              initialPage: _position,
+                              prefs: prefs,
+                              novelId: widget.novelId,
+                              novelTitle: meta.title,
+                              onPageChanged: _onPositionChanged,
+                              onAdvanceChapter: () =>
+                                  _gotoChapter(_chapterIdx + 1),
+                              onRetreatChapter: () => _gotoChapter(
+                                _chapterIdx - 1,
+                                positionWithin: -1,
+                              ),
+                              onCenterTap: _onBackgroundTap,
+                              onDoubleTap: _toggleChrome,
+                            )
+                          : _ScrollChapterView(
+                              key: ValueKey('scroll-${chapter.id}'),
+                              chapter: chapter,
+                              prefs: prefs,
+                              initialOffset: _position.toDouble(),
+                              novelId: widget.novelId,
+                              novelTitle: meta.title,
+                              chapterIndex: _chapterIdx,
+                              nextTitle: _chapterIdx < body.chapters.length - 1
+                                  ? body.chapters[_chapterIdx + 1].title
+                                  : null,
+                              nextLabel: meta.sourceType == SourceType.feed
+                                  ? 'Next story'
+                                  : 'Next chapter',
+                              onNext: _chapterIdx < body.chapters.length - 1
+                                  ? () => _gotoChapter(_chapterIdx + 1)
+                                  : null,
+                              onOffsetChanged: (px) =>
+                                  _onPositionChanged(px.round()),
+                              onTap: _onBackgroundTap,
+                              onDoubleTap: _toggleChrome,
+                            ),
+                    ),
+                  ),
+                  if (_selectionText.isNotEmpty)
+                    _SelectionTranslationBanner(
+                      source: _selectionText,
+                      translation: _selectionTranslation,
+                      loading: _selectionTranslating,
+                      onSaveToVocab: () => _saveSelectionToVocab(meta, chapter),
+                      onDismiss: () {
+                        // Hide banner; the user can clear the actual selection
+                        // handles by tapping outside the text.
+                        setState(() {
+                          _selectionText = '';
+                          _selectionTranslation = null;
+                          _selectionTranslating = false;
+                        });
+                      },
+                    ),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    child: _chromeVisible
+                        ? _BottomBar(
+                            chapterIdx: _chapterIdx,
+                            chapterCount: body.chapters.length,
+                            viewMode: prefs.viewMode,
+                            onPrev: _chapterIdx > 0
+                                ? () => _gotoChapter(_chapterIdx - 1)
                                 : null,
-                            nextLabel: meta.sourceType == SourceType.feed
-                                ? 'Next story'
-                                : 'Next chapter',
                             onNext: _chapterIdx < body.chapters.length - 1
                                 ? () => _gotoChapter(_chapterIdx + 1)
                                 : null,
-                            onOffsetChanged: (px) =>
-                                _onPositionChanged(px.round()),
-                            onTap: _onBackgroundTap,
-                            onDoubleTap: _toggleChrome,
-                          ),
+                            onViewMode: (v) async {
+                              await ref
+                                  .read(readerPrefsProvider.notifier)
+                                  .setViewMode(v);
+                            },
+                            onTranslate:
+                                chapter.translationStatus ==
+                                    TranslationStatus.translated
+                                ? null
+                                : () => _translateChapter(chapter, meta),
+                          )
+                        : const SizedBox.shrink(),
                   ),
-                ),
-                if (_selectionText.isNotEmpty)
-                  _SelectionTranslationBanner(
-                    source: _selectionText,
-                    translation: _selectionTranslation,
-                    loading: _selectionTranslating,
-                    onSaveToVocab: () => _saveSelectionToVocab(meta, chapter),
-                    onDismiss: () {
-                      // Hide banner; the user can clear the actual selection
-                      // handles by tapping outside the text.
-                      setState(() {
-                        _selectionText = '';
-                        _selectionTranslation = null;
-                        _selectionTranslating = false;
-                      });
-                    },
-                  ),
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 200),
-                  child: _chromeVisible
-                      ? _BottomBar(
-                          chapterIdx: _chapterIdx,
-                          chapterCount: body.chapters.length,
-                          viewMode: prefs.viewMode,
-                          onPrev: _chapterIdx > 0
-                              ? () => _gotoChapter(_chapterIdx - 1)
-                              : null,
-                          onNext: _chapterIdx < body.chapters.length - 1
-                              ? () => _gotoChapter(_chapterIdx + 1)
-                              : null,
-                          onViewMode: (v) async {
-                            await ref
-                                .read(readerPrefsProvider.notifier)
-                                .setViewMode(v);
-                          },
-                          onTranslate: chapter.translationStatus ==
-                                  TranslationStatus.translated
-                              ? null
-                              : () => _translateChapter(chapter, meta),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -476,17 +497,22 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               return ListTile(
                 leading: SizedBox(
                   width: 28,
-                  child: Text('${i + 1}',
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.6))),
+                  child: Text(
+                    '${i + 1}',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
                 ),
-                title: Text(c.title,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text(
+                  c.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 selected: i == _chapterIdx,
                 onTap: () => Navigator.pop(ctx, i),
               );
@@ -509,8 +535,10 @@ class _ScrollChapterView extends StatefulWidget {
   final String novelTitle;
   final int chapterIndex;
   final ValueChanged<double> onOffsetChanged;
+
   /// Single-tap on the chapter background. Used to clear active selection.
   final VoidCallback onTap;
+
   /// Double-tap on the chapter background. Used to toggle the reader chrome.
   final VoidCallback onDoubleTap;
 
@@ -553,8 +581,9 @@ class _ScrollChapterViewState extends State<_ScrollChapterView> {
     _ctrl.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_ctrl.hasClients) return;
-      _ctrl.jumpTo(widget.initialOffset
-          .clamp(0, _ctrl.position.maxScrollExtent));
+      _ctrl.jumpTo(
+        widget.initialOffset.clamp(0, _ctrl.position.maxScrollExtent),
+      );
     });
   }
 
@@ -611,9 +640,10 @@ class _ScrollChapterViewState extends State<_ScrollChapterView> {
                     text: widget.chapter.title,
                     prefs: widget.prefs,
                     baseStyle: baseStyle.copyWith(
-                        fontSize: widget.prefs.fontSize + 6,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25),
+                      fontSize: widget.prefs.fontSize + 6,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                    ),
                     onTapToken: (tk) => showWordPopover(
                       context,
                       token: tk,
@@ -633,7 +663,9 @@ class _ScrollChapterViewState extends State<_ScrollChapterView> {
                 }
                 return Padding(
                   padding: EdgeInsets.only(
-                      top: paragraphGap, bottom: paragraphGap * 3),
+                    top: paragraphGap,
+                    bottom: paragraphGap * 3,
+                  ),
                   child: _NextStoryCard(
                     label: widget.nextLabel,
                     title: next,
@@ -720,7 +752,10 @@ class _NextStoryCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 6),
-            Icon(Icons.chevron_right, color: cs.onSurface.withValues(alpha: 0.6)),
+            Icon(
+              Icons.chevron_right,
+              color: cs.onSurface.withValues(alpha: 0.6),
+            ),
           ],
         ),
       ),
@@ -734,6 +769,7 @@ class _PagedChapterView extends StatefulWidget {
   final Chapter chapter;
   final int chapterIndex;
   final int chapterCount;
+
   /// Last-saved page index. -1 means "last page" (used when arriving from a
   /// "swipe back into previous chapter" event).
   final int initialPage;
@@ -743,9 +779,11 @@ class _PagedChapterView extends StatefulWidget {
   final ValueChanged<int> onPageChanged;
   final VoidCallback onAdvanceChapter;
   final VoidCallback onRetreatChapter;
+
   /// Single-tap on the center zone (when tap-zones are on) or anywhere
   /// (when tap-zones are off). Used to clear active selection.
   final VoidCallback onCenterTap;
+
   /// Double-tap anywhere. Used to toggle the reader chrome.
   final VoidCallback onDoubleTap;
 
@@ -810,8 +848,9 @@ class _PagedChapterViewState extends State<_PagedChapterView> {
     final origInput = viewMode == ReaderViewMode.translated && trans.isNotEmpty
         ? const <String>[]
         : origs;
-    final transInput =
-        viewMode == ReaderViewMode.original ? const <String>[] : trans;
+    final transInput = viewMode == ReaderViewMode.original
+        ? const <String>[]
+        : trans;
     return paginateChapter(
       original: origInput.isEmpty ? origs : origInput,
       translated: transInput,
@@ -839,9 +878,11 @@ class _PagedChapterViewState extends State<_PagedChapterView> {
       widget.onAdvanceChapter();
       return;
     }
-    _ctrl.animateToPage(page,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic);
+    _ctrl.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _handleTap(TapUpDetails details, BoxConstraints constraints) {
@@ -895,7 +936,8 @@ class _PagedChapterViewState extends State<_PagedChapterView> {
                     itemCount: _pages.length,
                     physics: widget.prefs.swipeToTurnPage
                         ? const BouncingScrollPhysics(
-                            parent: AlwaysScrollableScrollPhysics())
+                            parent: AlwaysScrollableScrollPhysics(),
+                          )
                         : const NeverScrollableScrollPhysics(),
                     itemBuilder: (ctx, i) {
                       final page = _pages[i];
@@ -985,9 +1027,10 @@ class _PageBody extends StatelessWidget {
                     text: chapter.title,
                     prefs: prefs,
                     baseStyle: baseStyle.copyWith(
-                        fontSize: prefs.fontSize + 6,
-                        fontWeight: FontWeight.w700,
-                        height: 1.25),
+                      fontSize: prefs.fontSize + 6,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                    ),
                     onTapToken: (tk) => showWordPopover(
                       context,
                       token: tk,
@@ -1044,11 +1087,14 @@ class _PageProgressBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 6),
       child: Row(
         children: [
-          Text('${page + 1} / $total',
-              style: TextStyle(
-                  fontSize: 10.5,
-                  color: cs.onSurface.withValues(alpha: 0.55),
-                  fontFeatures: const [FontFeature.tabularFigures()])),
+          Text(
+            '${page + 1} / $total',
+            style: TextStyle(
+              fontSize: 10.5,
+              color: cs.onSurface.withValues(alpha: 0.55),
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: ClipRRect(
@@ -1062,11 +1108,14 @@ class _PageProgressBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text('Ch ${chapterIndex + 1} / $chapterCount',
-              style: TextStyle(
-                  fontSize: 10.5,
-                  color: cs.onSurface.withValues(alpha: 0.55),
-                  fontFeatures: const [FontFeature.tabularFigures()])),
+          Text(
+            'Ch ${chapterIndex + 1} / $chapterCount',
+            style: TextStyle(
+              fontSize: 10.5,
+              color: cs.onSurface.withValues(alpha: 0.55),
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
         ],
       ),
     );
@@ -1125,10 +1174,14 @@ TextStyle _baseTextStyle(BuildContext context, ReaderPrefs prefs) {
 
 String? _fontFamilyName(ReaderFontFamily f) {
   switch (f) {
-    case ReaderFontFamily.serif: return null;
-    case ReaderFontFamily.sans: return null;
-    case ReaderFontFamily.mono: return 'monospace';
-    case ReaderFontFamily.dyslexic: return null;
+    case ReaderFontFamily.serif:
+      return null;
+    case ReaderFontFamily.sans:
+      return null;
+    case ReaderFontFamily.mono:
+      return 'monospace';
+    case ReaderFontFamily.dyslexic:
+      return null;
   }
 }
 
@@ -1146,8 +1199,9 @@ class _ParagraphBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted =
-        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75);
+    final muted = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.75);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1161,13 +1215,15 @@ class _ParagraphBlock extends StatelessWidget {
         if (block.original != null && block.translated != null)
           const SizedBox(height: 6),
         if (block.translated != null)
-          Text(block.translated!,
-              style: baseStyle.copyWith(
-                color: muted,
-                fontStyle: prefs.viewMode == ReaderViewMode.parallel
-                    ? FontStyle.italic
-                    : FontStyle.normal,
-              )),
+          Text(
+            block.translated!,
+            style: baseStyle.copyWith(
+              color: muted,
+              fontStyle: prefs.viewMode == ReaderViewMode.parallel
+                  ? FontStyle.italic
+                  : FontStyle.normal,
+            ),
+          ),
       ],
     );
   }
@@ -1195,15 +1251,17 @@ class _TopBar extends StatelessWidget {
         children: [
           IconButton(onPressed: onBack, icon: const Icon(Icons.arrow_back)),
           Expanded(
-            child: Text(title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600)),
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
           IconButton(
-              onPressed: onChapters,
-              icon: const Icon(Icons.format_list_numbered)),
+            onPressed: onChapters,
+            icon: const Icon(Icons.format_list_numbered),
+          ),
           IconButton(onPressed: onSettings, icon: const Icon(Icons.tune)),
         ],
       ),
@@ -1236,10 +1294,10 @@ class _BottomBar extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.08)),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.08),
+          ),
         ),
       ),
       child: Row(
@@ -1251,17 +1309,24 @@ class _BottomBar extends StatelessWidget {
               style: const ButtonStyle(visualDensity: VisualDensity.compact),
               segments: const [
                 ButtonSegment(value: ReaderViewMode.original, label: Text('原')),
-                ButtonSegment(value: ReaderViewMode.translated, label: Text('EN')),
-                ButtonSegment(value: ReaderViewMode.parallel, label: Text('Both')),
+                ButtonSegment(
+                  value: ReaderViewMode.translated,
+                  label: Text('EN'),
+                ),
+                ButtonSegment(
+                  value: ReaderViewMode.parallel,
+                  label: Text('Both'),
+                ),
               ],
               selected: {viewMode},
               onSelectionChanged: (s) => onViewMode(s.first),
             ),
           ),
           IconButton(
-              tooltip: 'Translate chapter',
-              onPressed: onTranslate,
-              icon: const Icon(Icons.translate)),
+            tooltip: 'Translate chapter',
+            onPressed: onTranslate,
+            icon: const Icon(Icons.translate),
+          ),
           IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right)),
         ],
       ),
@@ -1289,18 +1354,26 @@ class _TranslateProgressSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Translating chapter',
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                    color: cs.primary)),
+            Text(
+              'Translating chapter',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: cs.primary,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, height: 1.2)),
+            Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
+              ),
+            ),
             const SizedBox(height: 14),
             ValueListenableBuilder<double>(
               valueListenable: progress,
@@ -1381,17 +1454,23 @@ class _SelectionTranslationBanner extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   if (loading)
-                    Row(children: [
-                      const SizedBox(
+                    Row(
+                      children: [
+                        const SizedBox(
                           width: 12,
                           height: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2)),
-                      const SizedBox(width: 8),
-                      Text('Translating…',
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Translating…',
                           style: TextStyle(
-                              fontSize: 12,
-                              color: cs.onSurface.withValues(alpha: 0.6))),
-                    ])
+                            fontSize: 12,
+                            color: cs.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    )
                   else if (translation != null)
                     Text(
                       translation!,
@@ -1415,8 +1494,7 @@ class _SelectionTranslationBanner extends StatelessWidget {
                   tooltip: 'Save phrase to vocab',
                   visualDensity: VisualDensity.compact,
                   iconSize: 20,
-                  onPressed:
-                      loading || isError ? null : onSaveToVocab,
+                  onPressed: loading || isError ? null : onSaveToVocab,
                   icon: const Icon(Icons.bookmark_add_outlined),
                 ),
                 IconButton(

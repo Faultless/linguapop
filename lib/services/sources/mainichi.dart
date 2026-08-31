@@ -12,22 +12,62 @@ import 'source_types.dart';
 /// Mainichi Shimbun's breaking-news feed (ニュース速報・総合). Flash articles
 /// are usually free in full; premium articles serve only their free opening
 /// portion, which we import as-is with a short notice appended.
+/// One Mainichi feed. The paper publishes several RDF feeds; these are the
+/// ones that actually resolve — the section paths advertised elsewhere
+/// (`shakai`, `keizai`, …) answer 200 with an HTML error page.
+class MainichiDesk {
+  /// Feed filename stem under `/rss/etc/`.
+  final String slug;
+  final String id;
+  final String name;
+  final String nativeName;
+  final String tagline;
+  final bool byDefault;
+
+  const MainichiDesk({
+    required this.slug,
+    required this.id,
+    required this.name,
+    required this.nativeName,
+    required this.tagline,
+    this.byDefault = false,
+  });
+
+  static const flash = MainichiDesk(
+      slug: 'mainichi-flash',
+      id: 'mainichi',
+      name: 'Mainichi Shimbun',
+      nativeName: '毎日新聞',
+      tagline: 'ニュース速報 — breaking news',
+      byDefault: true);
+
+  /// Just the one. The other advertised feeds don't hold up: `sports` and
+  /// `enta` are stale placeholders, `mainichi.rss` mixes section landing
+  /// pages in with the stories, `opinion` serves the flash feed's items
+  /// verbatim, and the section paths (`shakai`, `keizai`, …) answer 200 with
+  /// an HTML error page.
+  static const all = [flash];
+}
+
 class MainichiSource extends FeedSource {
-  static const _rssUrl = 'https://mainichi.jp/rss/etc/mainichi-flash.rss';
-
   final SessionClient _client;
+  final MainichiDesk desk;
 
-  MainichiSource(this._client);
+  MainichiSource(this._client, {this.desk = MainichiDesk.flash});
 
-  @override
-  String get id => 'mainichi';
-  @override
-  String get name => 'Mainichi Shimbun';
+  String get _rssUrl => 'https://mainichi.jp/rss/etc/${desk.slug}.rss';
 
   @override
-  String? get nativeName => '毎日新聞';
+  String get id => desk.id;
   @override
-  String? get description => '毎日新聞 ニュース速報 — breaking news';
+  String get name => desk.name;
+
+  @override
+  String? get nativeName => desk.nativeName;
+  @override
+  String? get description => '${desk.nativeName} ${desk.tagline}';
+  @override
+  bool get enabledByDefault => desk.byDefault;
   @override
   String get language => 'ja';
   @override
@@ -38,13 +78,18 @@ class MainichiSource extends FeedSource {
   @override
   Future<List<ArticleStub>> list() async {
     final res = await _client.get(Uri.parse(_rssUrl));
-    if (!res.ok) throw Exception('Mainichi RSS HTTP ${res.statusCode}');
+    if (!res.ok) throw Exception('${desk.name} RSS HTTP ${res.statusCode}');
     final out = <ArticleStub>[];
     for (final item in parseRssItems(res.body)) {
-      final m = RegExp(r'/articles/(\d+)/([a-z0-9]+)/(\d+[a-z]?)/(\d+c)')
+      // Article URLs look like
+      // /articles/20260831/k00/00m/020/033000c — five path segments, ending
+      // in the story number. Anything else in the feed is a section landing
+      // page with no body to extract.
+      final m = RegExp(r'/articles/([\w-]+(?:/[\w-]+)+c)(?:[?#]|$)')
           .firstMatch(item.link);
+      if (m == null) continue;
       out.add(ArticleStub(
-        id: m == null ? item.link : m.groups([1, 2, 3, 4]).join('-'),
+        id: m.group(1)!.replaceAll('/', '-'),
         title: item.title,
         sourceUrl: item.link,
         publishedAt: item.publishedAt,

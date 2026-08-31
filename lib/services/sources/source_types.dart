@@ -25,6 +25,11 @@ abstract class Source {
   /// The outlet's name in its own script, used for the front-page masthead.
   /// Null falls back to [name].
   String? get nativeName => null;
+
+  /// Whether a fresh install carries this source. The desk feeds (NHK 政治,
+  /// 毎日 オピニオン, …) are off by default so the newsstand starts small;
+  /// they're switched on in the source manager.
+  bool get enabledByDefault => true;
 }
 
 abstract class FeedSource extends Source {

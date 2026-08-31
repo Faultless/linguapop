@@ -10,28 +10,73 @@ import 'rss.dart' show parseRssItems, ogImage;
 import 'session_client.dart';
 import 'source_types.dart';
 
+/// One NHK News Web desk — a category RSS feed. NHK publishes nine, and they
+/// all render the same way, so each becomes its own paper on the stand.
+class NhkDesk {
+  /// RSS filename stem (`cat0` … `cat8`).
+  final String cat;
+
+  /// Source id. The top-stories desk keeps the historical plain `nhk-news`
+  /// so feeds imported before the desks existed still resolve.
+  final String id;
+  final String name;
+  final String nativeName;
+  final bool byDefault;
+
+  const NhkDesk({
+    required this.cat,
+    required this.id,
+    required this.name,
+    required this.nativeName,
+    this.byDefault = false,
+  });
+
+  static const top = NhkDesk(
+      cat: 'cat0',
+      id: 'nhk-news',
+      name: 'NHK News',
+      nativeName: 'NHKニュース',
+      byDefault: true);
+
+  /// Every desk, top stories first.
+  static const all = [
+    top,
+    NhkDesk(cat: 'cat1', id: 'nhk-shakai', name: 'NHK Society', nativeName: 'NHK社会'),
+    NhkDesk(cat: 'cat4', id: 'nhk-seiji', name: 'NHK Politics', nativeName: 'NHK政治'),
+    NhkDesk(cat: 'cat5', id: 'nhk-keizai', name: 'NHK Business', nativeName: 'NHK経済'),
+    NhkDesk(cat: 'cat6', id: 'nhk-kokusai', name: 'NHK World', nativeName: 'NHK国際'),
+    NhkDesk(cat: 'cat3', id: 'nhk-kagaku', name: 'NHK Science', nativeName: 'NHK科学・医療'),
+    NhkDesk(cat: 'cat2', id: 'nhk-bunka', name: 'NHK Culture', nativeName: 'NHK文化・エンタメ'),
+    NhkDesk(cat: 'cat7', id: 'nhk-sports', name: 'NHK Sport', nativeName: 'NHKスポーツ'),
+    // cat8 (暮らし) is deliberately absent: its feed links to lifestyle
+    // landing pages rather than news articles, so nothing survives the
+    // article-id filter.
+  ];
+}
+
 /// Regular NHK News Web (full-difficulty Japanese). Listing comes from the
 /// public RSS feed; article bodies are server-rendered on news.web.nhk but
 /// only in full once the NHK session handshake has run (same cookies as NHK
-/// Easy).
+/// Easy). One instance per [NhkDesk].
 class NhkNewsSource extends FeedSource {
-  // Top stories. Other categories exist (cat1 社会, cat5 ビジネス, …) but the
-  // main feed keeps the list manageable.
-  static const _rssUrl = 'https://www3.nhk.or.jp/rss/news/cat0.xml';
-
   final SessionClient _client;
+  final NhkDesk desk;
 
-  NhkNewsSource(this._client);
+  NhkNewsSource(this._client, {this.desk = NhkDesk.top});
 
-  @override
-  String get id => 'nhk-news';
-  @override
-  String get name => 'NHK News';
+  String get _rssUrl => 'https://www3.nhk.or.jp/rss/news/${desk.cat}.xml';
 
   @override
-  String? get nativeName => 'NHKニュース';
+  String get id => desk.id;
   @override
-  String? get description => 'NHKニュース — full-difficulty daily news';
+  String get name => desk.name;
+
+  @override
+  String? get nativeName => desk.nativeName;
+  @override
+  String? get description => '${desk.nativeName} — full-difficulty daily news';
+  @override
+  bool get enabledByDefault => desk.byDefault;
   @override
   String get language => 'ja';
   @override
@@ -42,7 +87,7 @@ class NhkNewsSource extends FeedSource {
   @override
   Future<List<ArticleStub>> list() async {
     final res = await _client.get(Uri.parse(_rssUrl));
-    if (!res.ok) throw Exception('NHK News RSS HTTP ${res.statusCode}');
+    if (!res.ok) throw Exception('${desk.name} RSS HTTP ${res.statusCode}');
     final out = <ArticleStub>[];
     for (final item in parseRssItems(res.body)) {
       final id = _newsId(item.link);

@@ -229,11 +229,13 @@ class _CoverOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final lang = meta.sourceLanguage.toUpperCase();
     final ctype = meta.contentType;
+    // Along the bottom edge, not the top: a cover's title lives at the top,
+    // and on a newspaper front the masthead is the whole point of the tile.
     return Stack(
       children: [
         if (ctype != null)
           Positioned(
-            top: 6,
+            bottom: 6,
             left: 6,
             child: _miniBadge(
               context,
@@ -241,7 +243,7 @@ class _CoverOverlay extends StatelessWidget {
             ),
           ),
         Positioned(
-          top: 6,
+          bottom: 6,
           right: 6,
           child: _miniBadge(context, label: lang),
         ),

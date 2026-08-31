@@ -56,10 +56,10 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
 
   /// Papers the stand carries, honouring the source manager.
   List<FeedSource> _enabledFeeds() {
-    final all = ref.read(sourceRegistryProvider).feedSources.toList();
-    final ids = ref.read(readerPrefsProvider).enabledSourceIds;
-    if (ids.isEmpty) return all;
-    return all.where((s) => ids.contains(s.id)).toList();
+    final registry = ref.read(sourceRegistryProvider);
+    final carried = ReaderPrefsNotifier.carriedSources(
+        ref.read(readerPrefsProvider), registry.defaultFeedIds);
+    return registry.feedSources.where((s) => carried.contains(s.id)).toList();
   }
 
   /// Feed sources the current paper selection covers.
@@ -176,13 +176,10 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
     final prefs = ref.watch(readerPrefsProvider);
     final simple = prefs.simpleMode;
     final viewMode = simple ? LibraryViewMode.grid : prefs.newsViewMode;
-    final allFeeds = registry.feedSources.toList();
-    final feedSources = prefs.enabledSourceIds.isEmpty
-        ? allFeeds
-        : allFeeds
-            .where((s) => prefs.enabledSourceIds.contains(s.id))
-            .toList();
-    final carried = {for (final s in feedSources) s.id};
+    final carried = ReaderPrefsNotifier.carriedSources(
+        prefs, registry.defaultFeedIds);
+    final feedSources =
+        registry.feedSources.where((s) => carried.contains(s.id)).toList();
 
     return Scaffold(
       appBar: AppBar(
