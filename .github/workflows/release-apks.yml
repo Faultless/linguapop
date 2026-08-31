@@ -56,14 +56,20 @@ jobs:
 
       # Absolute paths leak into the Dart AOT snapshot (package URIs) and into
       # NDK output (debug info), so a build at a different path produces
-      # different .so files from identical sources. These are the paths
-      # F-Droid's buildserver uses, read out of its own build log.
+      # different .so files from identical sources.
+      #
+      # These are the paths F-Droid's buildserver actually uses, read out of
+      # its own build log. Note the app dir: `fdroid build` runs inside a
+      # buildserver VM as the `vagrant` user, so it is /home/vagrant/build/
+      # <appid> — *not* the /builds/... path the CI container uses for
+      # fdroiddata itself. Getting that wrong leaves every .so different and
+      # looks exactly like a toolchain problem.
       - name: Mirror F-Droid's absolute paths
         env:
-          APP_DIR: /builds/Faultless/fdroiddata/build/com.linguapop.linguapop
+          APP_DIR: /home/vagrant/build/com.linguapop.linguapop
         run: |
-          sudo mkdir -p /home/vagrant/build/srclib /builds/Faultless/fdroiddata/build /opt
-          sudo chown -R "$(id -u):$(id -g)" /home/vagrant /builds
+          sudo mkdir -p /home/vagrant/build/srclib /opt
+          sudo chown -R "$(id -u):$(id -g)" /home/vagrant
           # Moved, not symlinked. clang finds its own resource dir via
           # /proc/self/exe, so a symlinked SDK still writes the *real* path
           # into debug info — which showed up as libdartjni.so differing in
@@ -82,7 +88,7 @@ jobs:
 
       - name: Build
         env:
-          APP_DIR: /builds/Faultless/fdroiddata/build/com.linguapop.linguapop
+          APP_DIR: /home/vagrant/build/com.linguapop.linguapop
           FLUTTER: /home/vagrant/build/srclib/flutter/bin/flutter
           ANDROID_HOME: /opt/android-sdk
           ANDROID_SDK_ROOT: /opt/android-sdk
@@ -97,7 +103,7 @@ jobs:
 
       - name: Report what was built
         run: |
-          cd /builds/Faultless/fdroiddata/build/com.linguapop.linguapop/build/app/outputs/flutter-apk
+          cd /home/vagrant/build/com.linguapop.linguapop/build/app/outputs/flutter-apk
           for f in app-*-release.apk; do
             echo "$f  $(sha256sum "$f" | cut -c1-16)"
           done
@@ -105,5 +111,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: unsigned-apks-${{ inputs.ref }}
-          path: /builds/Faultless/fdroiddata/build/com.linguapop.linguapop/build/app/outputs/flutter-apk/app-*-release.apk
+          path: /home/vagrant/build/com.linguapop.linguapop/build/app/outputs/flutter-apk/app-*-release.apk
           if-no-files-found: error
