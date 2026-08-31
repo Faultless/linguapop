@@ -8,7 +8,7 @@ codebase (iOS scaffolds with `flutter create . --platforms ios`).
 ## Get started
 
 ```bash
-git clone https://github.com/Faultless/linguapop-extension.git
+git clone https://github.com/Faultless/linguapop.git
 cd linguapop-extension
 flutter pub get
 flutter run                      # run on any connected device

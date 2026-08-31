@@ -56,6 +56,7 @@ android {
         if (hasReleaseKeystore) {
             create("release") {
                 storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storeType = keystoreProperties.getProperty("storeType") ?: "PKCS12"
                 storePassword = keystoreProperties.getProperty("storePassword")
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")

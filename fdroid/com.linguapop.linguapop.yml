@@ -10,14 +10,14 @@ Categories:
   - Science & Education
 License: GPL-3.0-or-later
 AuthorName: Serge Kamel
-SourceCode: https://github.com/Faultless/linguapop-extension
-IssueTracker: https://github.com/Faultless/linguapop-extension/issues
-Changelog: https://github.com/Faultless/linguapop-extension/releases
+SourceCode: https://github.com/Faultless/linguapop
+IssueTracker: https://github.com/Faultless/linguapop/issues
+Changelog: https://github.com/Faultless/linguapop/releases
 
 AutoName: LinguaPop
 
 RepoType: git
-Repo: https://github.com/Faultless/linguapop-extension.git
+Repo: https://github.com/Faultless/linguapop.git
 
 Builds:
   - versionName: 7.4.0
