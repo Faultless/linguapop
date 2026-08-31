@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../data/models/jlpt_stats.dart';
+import '../../services/sources/news_image_store.dart';
 import 'difficulty_badge.dart';
 import 'news_thumb.dart';
 import 'newspaper.dart';
@@ -113,6 +114,11 @@ class FrontPageBand extends StatelessWidget {
 
   static const gutter = 12.0;
 
+  /// The meta line is pinned so that a difficulty badge arriving after an
+  /// async estimate (legacy articles, which have no stored score) can't
+  /// change the tile's height once it's on screen.
+  static const metaRowHeight = 18.0;
+
   const FrontPageBand({
     super.key,
     required this.items,
@@ -133,55 +139,63 @@ class FrontPageBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return LayoutBuilder(builder: (ctx, c) {
-      final colWidth = (c.maxWidth - gutter * (columns - 1)) / columns;
-      final buckets = deal(items, columns, colWidth);
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        final colWidth = (c.maxWidth - gutter * (columns - 1)) / columns;
+        final buckets = deal(items, columns, colWidth);
 
-      final children = <Widget>[];
-      for (var k = 0; k < columns; k++) {
-        if (k > 0) children.add(const SizedBox(width: gutter));
-        children.add(Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final item in buckets[k])
-                FrontPageStory(
-                  key: ValueKey(item.id),
-                  item: item,
-                  showSource: showSource,
-                  showDifficulty: showDifficulty,
-                  columnWidth: colWidth,
-                  onTap: () => onOpen(item),
-                  onLongPress:
-                      onLongPress == null ? null : () => onLongPress!(item),
-                ),
-            ],
+        final children = <Widget>[];
+        for (var k = 0; k < columns; k++) {
+          if (k > 0) children.add(const SizedBox(width: gutter));
+          children.add(
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final item in buckets[k])
+                    FrontPageStory(
+                      key: ValueKey(item.id),
+                      item: item,
+                      showSource: showSource,
+                      showDifficulty: showDifficulty,
+                      columnWidth: colWidth,
+                      onTap: () => onOpen(item),
+                      onLongPress: onLongPress == null
+                          ? null
+                          : () => onLongPress!(item),
+                    ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // The vertical rules between columns are painted behind the row rather
+        // than laid out as stretched children: a Row inside a ListView has an
+        // unbounded height, so a full-height divider can't be a flex child
+        // without an expensive IntrinsicHeight pass.
+        return CustomPaint(
+          painter: _ColumnRulesPainter(
+            columns: columns,
+            colWidth: colWidth,
+            gutter: gutter,
+            color: cs.onSurface.withValues(alpha: 0.16),
           ),
-        ));
-      }
-
-      // The vertical rules between columns are painted behind the row rather
-      // than laid out as stretched children: a Row inside a ListView has an
-      // unbounded height, so a full-height divider can't be a flex child
-      // without an expensive IntrinsicHeight pass.
-      return CustomPaint(
-        painter: _ColumnRulesPainter(
-          columns: columns,
-          colWidth: colWidth,
-          gutter: gutter,
-          color: cs.onSurface.withValues(alpha: 0.16),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children,
-        ),
-      );
-    });
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
+        );
+      },
+    );
   }
 
   /// Assign each item to the shortest column so far. Exposed for tests.
   static List<List<FrontPageItem>> deal(
-      List<FrontPageItem> items, int columns, double colWidth) {
+    List<FrontPageItem> items,
+    int columns,
+    double colWidth,
+  ) {
     final buckets = List.generate(columns, (_) => <FrontPageItem>[]);
     final heights = List<double>.filled(columns, 0);
     for (final item in items) {
@@ -201,10 +215,9 @@ class FrontPageBand extends StatelessWidget {
     const headlineSize = 15.0;
     final perLine = (colWidth / (headlineSize * 0.96)).floor().clamp(4, 40);
     final titleLines = (item.title.runes.length / perLine).ceil().clamp(1, 6);
-    var h = 18.0; // meta line
+    var h = metaRowHeight;
     h += titleLines * headlineSize * 1.18 + 6;
-    if ((item.imageUrl ?? '').isNotEmpty ||
-        (item.imageUrl == null && FrontPageStory.wantsPlaceholder(item.id))) {
+    if (FrontPageStory.cutFor(item) != CutKind.none) {
       h += colWidth * 0.58 + 8;
     }
     h += 3 * 12 * 1.34; // snippet
@@ -274,20 +287,30 @@ class FrontPageStory extends StatefulWidget {
   /// picked deterministically from the story id so a given story always looks
   /// the same.
   static bool wantsPlaceholder(String id) => stableSeed(id) % 3 != 0;
+
+  /// What sits above the lead paragraph, decided **synchronously**.
+  ///
+  /// Layout and paint must agree on this, and both must agree with what the
+  /// same story decided a moment ago: a tile that builds tall and then
+  /// collapses shifts everything below it and drags the scroll position with
+  /// it. So the answer comes from the item and the process-wide
+  /// known-broken set only — never from anything that resolves later.
+  static CutKind cutFor(FrontPageItem item) {
+    final url = item.imageUrl;
+    if (url == null) {
+      // The source never offered art; a drawn stand-in is honest.
+      return wantsPlaceholder(item.id) ? CutKind.placeholder : CutKind.none;
+    }
+    // There was supposed to be a picture. If it can't be drawn, run the story
+    // text-only rather than pretending with a stand-in.
+    return NewsImageStore.isRenderable(url) ? CutKind.image : CutKind.none;
+  }
 }
 
+/// What a story shows above its lead paragraph.
+enum CutKind { image, placeholder, none }
+
 class _FrontPageStoryState extends State<FrontPageStory> {
-  /// Set once the image turns out not to exist — an evicted local capture, or
-  /// a host that won't serve it. The story then runs text-only rather than
-  /// holding a grey rectangle on the page.
-  bool _noImage = false;
-
-  @override
-  void didUpdateWidget(covariant FrontPageStory old) {
-    super.didUpdateWidget(old);
-    if (old.item.imageUrl != widget.item.imageUrl) _noImage = false;
-  }
-
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -296,26 +319,27 @@ class _FrontPageStoryState extends State<FrontPageStory> {
     final cs = Theme.of(context).colorScheme;
     final read = item.read;
     final time = frontPageTimeLabel(item.publishedAt);
-    final image = _noImage ? '' : (item.imageUrl ?? '');
     final cutHeight = columnWidth * 0.56;
 
     Widget? cut;
-    if (image.isNotEmpty) {
-      cut = NewsThumb(
-        url: image,
-        width: double.infinity,
-        height: cutHeight,
-        radius: 0,
-        onUnavailable: () {
-          if (mounted) setState(() => _noImage = true);
-        },
-      );
-    } else if (item.imageUrl == null &&
-        FrontPageStory.wantsPlaceholder(item.id)) {
-      // Only for stories the source never offered a picture for. A story whose
-      // picture failed to load goes text-only instead — a drawn stand-in there
-      // would be pretending we had something.
-      cut = NewsprintPlaceholder(seedText: item.title, height: cutHeight);
+    switch (FrontPageStory.cutFor(item)) {
+      case CutKind.image:
+        cut = NewsThumb(
+          url: item.imageUrl,
+          width: double.infinity,
+          height: cutHeight,
+          radius: 0,
+          onUnavailable: () {
+            // Record it where the next build of this tile — and every other
+            // tile showing the same URL — will see it before laying out.
+            NewsImageStore.markUnavailable(item.imageUrl!);
+            if (mounted) setState(() {});
+          },
+        );
+      case CutKind.placeholder:
+        cut = NewsprintPlaceholder(seedText: item.title, height: cutHeight);
+      case CutKind.none:
+        cut = null;
     }
 
     return InkWell(
@@ -326,30 +350,35 @@ class _FrontPageStoryState extends State<FrontPageStory> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                if (showSource) ...[
-                  Flexible(
-                    child: KickerBox(text: item.sourceName, muted: read),
-                  ),
-                  const SizedBox(width: 5),
-                ],
-                if (time.isNotEmpty)
-                  Text(
-                    time,
-                    maxLines: 1,
-                    style: NewsprintStyle.meta(cs, size: 9.5).copyWith(
+            SizedBox(
+              height: FrontPageBand.metaRowHeight,
+              child: Row(
+                children: [
+                  if (showSource) ...[
+                    Flexible(
+                      child: KickerBox(text: item.sourceName, muted: read),
+                    ),
+                    const SizedBox(width: 5),
+                  ],
+                  if (time.isNotEmpty)
+                    Text(
+                      time,
+                      maxLines: 1,
+                      style: NewsprintStyle.meta(cs, size: 9.5).copyWith(
                         color: read
                             ? cs.onSurface.withValues(alpha: 0.45)
-                            : cs.primary),
-                  ),
-                const Spacer(),
-                if (widget.showDifficulty)
-                  DifficultyBadge(
+                            : cs.primary,
+                      ),
+                    ),
+                  const Spacer(),
+                  if (widget.showDifficulty)
+                    DifficultyBadge(
                       text: item.difficultyText,
                       stats: item.stats,
-                      fontSize: 8.5),
-              ],
+                      fontSize: 8.5,
+                    ),
+                ],
+              ),
             ),
             const SizedBox(height: 4),
             Row(
@@ -376,8 +405,9 @@ class _FrontPageStoryState extends State<FrontPageStory> {
               const SizedBox(height: 6),
               Container(
                 decoration: BoxDecoration(
-                  border:
-                      Border.all(color: cs.onSurface.withValues(alpha: 0.35)),
+                  border: Border.all(
+                    color: cs.onSurface.withValues(alpha: 0.35),
+                  ),
                 ),
                 padding: const EdgeInsets.all(2),
                 child: cut,

@@ -40,11 +40,41 @@ class NewsImageStore {
 
   /// The bytes behind a `local:` URL, or null if they've been evicted.
   static Uint8List? read(String localUrl) {
-    final raw = Storage.newsImages().get(keyOf(localUrl));
-    if (raw is Uint8List) return raw;
-    if (raw is List<int>) return Uint8List.fromList(raw);
+    try {
+      final raw = Storage.newsImages().get(keyOf(localUrl));
+      if (raw is Uint8List) return raw;
+      if (raw is List<int>) return Uint8List.fromList(raw);
+    } catch (_) {
+      // Box not open (tests, early startup) — treat as no image.
+    }
     return null;
   }
+
+  /// Remote URLs that have already failed to load this session.
+  ///
+  /// Process-wide rather than per-widget on purpose. A story tile is
+  /// destroyed when it scrolls out of view and rebuilt when it scrolls back;
+  /// if the "this image is broken" verdict lived on the tile, every pass
+  /// would build it tall, discover the failure a frame later, and shrink —
+  /// which shifts everything below and yanks the scroll position. Remembering
+  /// it here means each broken URL costs exactly one reflow per session.
+  static final Set<String> _unavailable = <String>{};
+
+  static void markUnavailable(String url) => _unavailable.add(url);
+
+  static bool isUnavailable(String url) => _unavailable.contains(url);
+
+  /// Whether [url] can be drawn *right now*, decided synchronously so layout
+  /// never has to guess. Local captures are a box lookup; remote URLs are
+  /// assumed good until one fails.
+  static bool isRenderable(String? url) {
+    if (url == null || url.isEmpty) return false;
+    if (isLocal(url)) return read(url) != null;
+    return !isUnavailable(url);
+  }
+
+  /// Test seam: forget the failed-URL verdicts.
+  static void resetUnavailableForTest() => _unavailable.clear();
 
   /// Fetch [url] through the session client and store it under [key].
   ///

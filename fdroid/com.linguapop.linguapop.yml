@@ -20,9 +20,9 @@ RepoType: git
 Repo: https://github.com/Faultless/linguapop-extension.git
 
 Builds:
-  - versionName: 7.3.0
-    versionCode: 1011
-    commit: v7.3.0
+  - versionName: 7.3.1
+    versionCode: 1012
+    commit: v7.3.1
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     srclibs:
       - flutter@stable
@@ -41,9 +41,9 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm
     ndk: 28.2.13676358
 
-  - versionName: 7.3.0
-    versionCode: 2011
-    commit: v7.3.0
+  - versionName: 7.3.1
+    versionCode: 2012
+    commit: v7.3.1
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     srclibs:
       - flutter@stable
@@ -62,9 +62,9 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm64
     ndk: 28.2.13676358
 
-  - versionName: 7.3.0
-    versionCode: 4011
-    commit: v7.3.0
+  - versionName: 7.3.1
+    versionCode: 4012
+    commit: v7.3.1
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
     srclibs:
       - flutter@stable
@@ -90,5 +90,5 @@ VercodeOperation:
   - '%c + 2000'
   - '%c + 4000'
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 7.3.0
-CurrentVersionCode: 4011
+CurrentVersion: 7.3.1
+CurrentVersionCode: 4012

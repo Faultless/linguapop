@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:linguapop/services/sources/news_image_store.dart';
 import 'package:linguapop/ui/widgets/front_page.dart';
+import 'package:linguapop/ui/widgets/news_thumb.dart';
 import 'package:linguapop/ui/widgets/newspaper.dart';
 
 FrontPageItem item(String id, {String? title, String? image, bool read = false}) =>
@@ -120,6 +122,108 @@ void main() {
         dayOf: (_) => null,
       );
       expect(rows.whereType<DaySection>().single.day, isNull);
+    });
+  });
+
+  group('stable tile height', () {
+    // The scroll bug this guards: a story tile is destroyed when its band
+    // scrolls out and rebuilt when it scrolls back. If the tile builds tall,
+    // discovers its image is broken a frame later and collapses, everything
+    // below shifts and the scroll position is yanked toward the bottom —
+    // repeatedly, once per pass over the same band.
+    setUp(NewsImageStore.resetUnavailableForTest);
+    tearDown(NewsImageStore.resetUnavailableForTest);
+
+    const broken = 'https://example.com/gone.jpg';
+
+    test('a known-broken image is not counted in the height estimate', () {
+      final it = item('a', image: broken);
+      final tall = FrontPageBand.estimateHeight(it, 180);
+      NewsImageStore.markUnavailable(broken);
+      final short = FrontPageBand.estimateHeight(it, 180);
+      expect(short, lessThan(tall));
+    });
+
+    test('layout and paint agree on whether there is a cut', () {
+      // No URL, and the id says no stand-in.
+      final ids = List.generate(60, (i) => 'story-$i');
+      final bare = ids.firstWhere((id) => !FrontPageStory.wantsPlaceholder(id));
+      final drawn = ids.firstWhere(FrontPageStory.wantsPlaceholder);
+      expect(FrontPageStory.cutFor(item(bare)), CutKind.none);
+      expect(FrontPageStory.cutFor(item(drawn)), CutKind.placeholder);
+      expect(FrontPageStory.cutFor(item('x', image: broken)), CutKind.image);
+      NewsImageStore.markUnavailable(broken);
+      expect(FrontPageStory.cutFor(item('x', image: broken)), CutKind.none);
+    });
+
+    test('a failed image never becomes a drawn stand-in', () {
+      // 'drawn' would get a placeholder if it had no URL at all; having had
+      // one and lost it must not conjure art we never had.
+      final drawn = List.generate(60, (i) => 'story-$i')
+          .firstWhere(FrontPageStory.wantsPlaceholder);
+      NewsImageStore.markUnavailable(broken);
+      expect(FrontPageStory.cutFor(item(drawn, image: broken)), CutKind.none);
+    });
+
+    testWidgets('a tile rebuilt after its image failed keeps its height',
+        (tester) async {
+      final items = [for (var i = 0; i < 4; i++) item('$i', image: broken)];
+
+      double heightOfFirst() =>
+          tester.getSize(find.byType(FrontPageStory).first).height;
+
+      await pumpBand(tester, items);
+      // Image.network fails in tests; let the report land.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final settled = heightOfFirst();
+
+      // Rebuild from scratch, the way scrolling a band back into view does,
+      // and measure on the *first* frame: a tall frame here is exactly the
+      // reflow that drags the scroll position.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 400,
+              height: 800,
+              child: ListView(children: [
+                FrontPageBand(
+                  items: items,
+                  columns: 2,
+                  showDifficulty: false,
+                  onOpen: (_) {},
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ));
+      expect(heightOfFirst(), settled,
+          reason: 'the tile must not build tall again and re-collapse');
+    });
+
+    testWidgets('a known-broken image reserves no box on the first frame',
+        (tester) async {
+      NewsImageStore.markUnavailable(broken);
+      await pumpBand(tester, [item('a', image: broken)]);
+      // Not "collapses quickly" — never laid out at all, so there is no
+      // frame in which the tile is the wrong height.
+      expect(find.byType(NewsThumb), findsNothing);
+    });
+
+    testWidgets('a story with no image at all is shorter than one with',
+        (tester) async {
+      await pumpBand(tester, [item('a', image: broken)]);
+      await tester.pump(const Duration(milliseconds: 50));
+      final withoutCut = tester.getSize(find.byType(FrontPageStory)).height;
+
+      NewsImageStore.resetUnavailableForTest();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await pumpBand(tester, [item('a', image: broken)]);
+      final withCut = tester.getSize(find.byType(FrontPageStory)).height;
+      expect(withCut, greaterThan(withoutCut));
     });
   });
 
