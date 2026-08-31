@@ -54,6 +54,17 @@ app when the Flutter version (`FLUTTER_VERSION`), the NDK version
 `test/fdroid_metadata_test.dart` fails if it drifts, which is cheaper than
 waiting an hour for F-Droid's buildserver to say so.
 
-F-Droid signs with its own key, so its build deletes the debug `signingConfig`
-line from `android/app/build.gradle.kts` during prebuild. Store listing text
-lives in `fastlane/metadata/android/en-US/`.
+F-Droid signs with its own key, so its build deletes the line marked
+`FDROID-STRIP` in `android/app/build.gradle.kts` during prebuild. Nothing else
+in that file may carry the marker — a test enforces it.
+
+Release builds sign with a real keystore when `android/key.properties` exists
+(`storeFile` / `storePassword` / `keyAlias` / `keyPassword`), and fall back to
+the debug key when it doesn't. That file and the keystore are gitignored. **If
+you create one, back it up** — losing it means never being able to ship an
+update that existing installs will accept.
+
+One APK per ABI, with version codes `buildNumber * 10 + abi`
+(armeabi-v7a=1, arm64-v8a=2, x86_64=3), applied in `android/app/build.gradle.kts`
+because Flutter's own scheme puts the ABI in the high digits and leaves no room
+to grow. Store listing text lives in `fastlane/metadata/android/en-US/`.

@@ -300,6 +300,37 @@ The Android build needs a few compat shims (see `android/build.gradle.kts` and
   Kotlin side; we align Kotlin to whatever the plugin's Java is set to.
 - `minSdk = 21` (raised from Flutter's default 16) for native plugins that
   bundle NDK platform-21 code.
+- The NDK is **pinned** (`ndkVersion = "28.2.13676358"`) rather than tracking
+  `flutter.ndkVersion`, because the F-Droid recipe has to name an NDK its
+  buildserver provides and it must match what the vendored MeCab is compiled
+  against here.
+
+### Release packaging
+
+One APK per ABI. Version codes are `buildNumber * 10 + abi` (armeabi-v7a=1,
+arm64-v8a=2, x86_64=3), applied by a `versionCodeOverride` block in
+`android/app/build.gradle.kts`. That's the scheme F-Droid's submission guide
+asks for; Flutter's own `--split-per-abi` scheme puts the ABI in the *high*
+digits (1000/2000/4000 + code), which leaves no room to grow and sorts x86_64
+above a later arm64 release. The build number jumped to 210 when the scheme
+changed — the last release under the old one shipped arm64 as 2012, and Android
+refuses an update whose versionCode went backwards.
+
+Release builds sign with a real keystore when `android/key.properties` exists,
+and fall back to the debug key when it doesn't, so a fresh clone still produces
+installable release APKs. F-Droid signs with its own key, so its recipe deletes
+the line marked `FDROID-STRIP` during prebuild — **exactly one line in that file
+may carry the marker**, which a test enforces. Keying the strip off a marker
+rather than the shape of the code is deliberate: the code changed once and broke
+the old `sed` silently.
+
+`test/fdroid_metadata_test.dart` checks the recipe in `fdroid/` against the app:
+versionCodes against `pubspec.yaml` and gradle's ABI map, `VercodeOperation`
+against the declared codes and their required ordering, that no code regresses
+below the old scheme, that `commit` is a full hash pointing at the release tag,
+the pinned NDK, and the marker's uniqueness. Run it before touching either file
+— an F-Droid build cycle takes the better part of an hour to tell you the same
+thing.
 
 ## Migration status
 

@@ -11,8 +11,8 @@ plugins {
 // Release signing, when a keystore is configured. `android/key.properties` is
 // gitignored and holds storeFile / storePassword / keyAlias / keyPassword.
 // Without it, release builds fall back to the debug key so they still install
-// locally — and F-Droid's recipe strips signing entirely (see FDROID-STRIP
-// below) so it can apply its own.
+// locally — and F-Droid's recipe deletes the marked line below so it can apply
+// its own key instead.
 //
 // Once a real key signs published APKs, back it up: losing it means never
 // being able to ship an update anyone's existing install will accept.
@@ -65,9 +65,11 @@ android {
 
     buildTypes {
         release {
-            // The F-Droid recipe deletes the marked line so the APK comes out
-            // unsigned for F-Droid to sign. Keep it on one line, and keep the
-            // marker: the recipe seds on FDROID-STRIP, not on the code.
+            // The F-Droid recipe deletes the marked line so the APK comes
+            // out unsigned for F-Droid to sign. Keep it on one line, and keep
+            // the trailing marker — the recipe seds on that, not on the shape
+            // of the code, which changed once already and broke the sed
+            // silently. Nothing else in this file may carry the marker.
             signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release") else signingConfigs.getByName("debug") // FDROID-STRIP
         }
     }

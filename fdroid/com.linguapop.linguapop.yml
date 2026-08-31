@@ -20,15 +20,15 @@ RepoType: git
 Repo: https://github.com/Faultless/linguapop-extension.git
 
 Builds:
-  - versionName: 7.3.1
-    versionCode: 1012
-    commit: v7.3.1
+  - versionName: 7.4.0
+    versionCode: 2101
+    commit: fddd666d4a02785ac6696889579a20496a93b408
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     srclibs:
       - flutter@stable
     prebuild:
       - git -C $$flutter$$ checkout -f $(cat FLUTTER_VERSION)
-      - sed -i -e '/signingConfig = signingConfigs.getByName("debug")/d' android/app/build.gradle.kts
+      - sed -i -e '/FDROID-STRIP/d' android/app/build.gradle.kts
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get --enforce-lockfile
@@ -41,15 +41,15 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm
     ndk: 28.2.13676358
 
-  - versionName: 7.3.1
-    versionCode: 2012
-    commit: v7.3.1
+  - versionName: 7.4.0
+    versionCode: 2102
+    commit: fddd666d4a02785ac6696889579a20496a93b408
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     srclibs:
       - flutter@stable
     prebuild:
       - git -C $$flutter$$ checkout -f $(cat FLUTTER_VERSION)
-      - sed -i -e '/signingConfig = signingConfigs.getByName("debug")/d' android/app/build.gradle.kts
+      - sed -i -e '/FDROID-STRIP/d' android/app/build.gradle.kts
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get --enforce-lockfile
@@ -62,15 +62,15 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm64
     ndk: 28.2.13676358
 
-  - versionName: 7.3.1
-    versionCode: 4012
-    commit: v7.3.1
+  - versionName: 7.4.0
+    versionCode: 2103
+    commit: fddd666d4a02785ac6696889579a20496a93b408
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
     srclibs:
       - flutter@stable
     prebuild:
       - git -C $$flutter$$ checkout -f $(cat FLUTTER_VERSION)
-      - sed -i -e '/signingConfig = signingConfigs.getByName("debug")/d' android/app/build.gradle.kts
+      - sed -i -e '/FDROID-STRIP/d' android/app/build.gradle.kts
       - export PUB_CACHE=$(pwd)/.pub-cache
       - $$flutter$$/bin/flutter config --no-analytics
       - $$flutter$$/bin/flutter pub get --enforce-lockfile
@@ -86,9 +86,9 @@ Builds:
 AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v.*$
 VercodeOperation:
-  - '%c + 1000'
-  - '%c + 2000'
-  - '%c + 4000'
+  - 10 * %c + 1
+  - 10 * %c + 2
+  - 10 * %c + 3
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 7.3.1
-CurrentVersionCode: 4012
+CurrentVersion: 7.4.0
+CurrentVersionCode: 2103
