@@ -6,7 +6,7 @@ publish_to: 'none'
 # to 210 when that scheme replaced Flutter's own: the last release under the
 # old scheme shipped arm64 as 2012, and a versionCode must never go backwards
 # for anyone who sideloaded it.
-version: 7.4.0+210
+version: 7.4.1+211
 
 environment:
   sdk: ^3.11.3

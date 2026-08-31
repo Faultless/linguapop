@@ -1,3 +1,4 @@
+AllowedAPKSigningKeys: 401fd4fd5793147f2e39f5ca7078aa21fc98165709c4336b36289479eeabedc9
 AntiFeatures:
   NonFreeNet:
     en-US: Articles are fetched from NHK and the Mainichi Shimbun, dictionary entries
@@ -20,10 +21,11 @@ RepoType: git
 Repo: https://github.com/Faultless/linguapop.git
 
 Builds:
-  - versionName: 7.4.0
-    versionCode: 2101
+  - versionName: 7.4.1
+    versionCode: 2111
     commit: 43c0885141cd0e009637df6ddf1582520a77dcab
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+    binary: https://github.com/Faultless/linguapop/releases/download/v%v/linguapop-%v-armeabi-v7a.apk
     srclibs:
       - flutter@stable
     prebuild:
@@ -41,10 +43,11 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm
     ndk: 28.2.13676358
 
-  - versionName: 7.4.0
-    versionCode: 2102
+  - versionName: 7.4.1
+    versionCode: 2112
     commit: 43c0885141cd0e009637df6ddf1582520a77dcab
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+    binary: https://github.com/Faultless/linguapop/releases/download/v%v/linguapop-%v-arm64-v8a.apk
     srclibs:
       - flutter@stable
     prebuild:
@@ -62,10 +65,11 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm64
     ndk: 28.2.13676358
 
-  - versionName: 7.4.0
-    versionCode: 2103
+  - versionName: 7.4.1
+    versionCode: 2113
     commit: 43c0885141cd0e009637df6ddf1582520a77dcab
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
+    binary: https://github.com/Faultless/linguapop/releases/download/v%v/linguapop-%v-x86_64.apk
     srclibs:
       - flutter@stable
     prebuild:
@@ -90,5 +94,5 @@ VercodeOperation:
   - 10 * %c + 2
   - 10 * %c + 3
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 7.4.0
-CurrentVersionCode: 2103
+CurrentVersion: 7.4.1
+CurrentVersionCode: 2113
