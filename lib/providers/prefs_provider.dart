@@ -59,6 +59,30 @@ class ReaderPrefsNotifier extends StateNotifier<ReaderPrefs> {
   Future<void> setHighlightUnlisted(bool v) =>
       update((p) => p.copyWith(highlightUnlisted: v));
 
+  Future<void> setSimpleMode(bool v) =>
+      update((p) => p.copyWith(simpleMode: v));
+
+  /// Toggle one feed source on the newsstand. An empty list means "carry
+  /// everything", so the first time a source is switched off we have to
+  /// materialise the full list before removing it.
+  Future<void> setSourceEnabled(String id, bool enabled, List<String> allIds) =>
+      update((p) {
+        final current =
+            p.enabledSourceIds.isEmpty ? allIds : p.enabledSourceIds;
+        final next = [...current];
+        if (enabled) {
+          if (!next.contains(id)) next.add(id);
+        } else {
+          next.remove(id);
+        }
+        // Back to carrying everything: store the "all" sentinel again so a
+        // newly added adapter shows up automatically.
+        if (next.length == allIds.length && next.toSet().containsAll(allIds)) {
+          return p.copyWith(enabledSourceIds: const []);
+        }
+        return p.copyWith(enabledSourceIds: next);
+      });
+
   Future<void> setShowRubies(bool v) => update((p) => p.copyWith(showRubies: v));
 
   Future<void> setTtsRate(double r) => update((p) => p.copyWith(ttsRate: r));

@@ -13,11 +13,17 @@ class NovelCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
+  /// Slot width handed down by [BookShelf]. When set the card fills its slot
+  /// exactly — cover at 2:3, caption in whatever height is left — so a row of
+  /// covers lines up on the shelf board. Null keeps the old free-height form.
+  final double? width;
+
   const NovelCard({
     super.key,
     required this.meta,
     required this.onTap,
     this.onLongPress,
+    this.width,
   });
 
   @override
@@ -27,6 +33,61 @@ class NovelCard extends StatelessWidget {
         ? 0.0
         : (meta.lastReadChapter / meta.chapterCount).clamp(0.0, 1.0);
     final jlptBucket = meta.jlptStats?.difficultyBucket;
+    final w = width;
+
+    if (w != null) {
+      return InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                _CoverWithShadow(meta: meta, width: w),
+                if (jlptBucket != null)
+                  Positioned(
+                    bottom: 5,
+                    right: 5,
+                    child: JlptBadge(level: jlptBucket, size: 8.5),
+                  ),
+                if (meta.favorite)
+                  const Positioned(bottom: 5, left: 5, child: _FavoriteHeart()),
+                if (progress > 0 && progress < 1)
+                  Positioned(
+                    left: 5,
+                    right: 5,
+                    bottom: 3,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 2.5,
+                        backgroundColor: Colors.black.withValues(alpha: 0.35),
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Expanded(
+              child: Text(
+                meta.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.18,
+                  fontWeight: FontWeight.w600,
+                  color: cs.onSurface.withValues(alpha: 0.9),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return InkWell(
       onTap: onTap,

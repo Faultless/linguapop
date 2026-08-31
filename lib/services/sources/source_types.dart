@@ -21,6 +21,10 @@ abstract class Source {
   String get language;
   ContentType get contentType;
   String? get homepageUrl;
+
+  /// The outlet's name in its own script, used for the front-page masthead.
+  /// Null falls back to [name].
+  String? get nativeName => null;
 }
 
 abstract class FeedSource extends Source {

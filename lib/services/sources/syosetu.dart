@@ -39,6 +39,9 @@ class SyosetuSource extends SearchSource {
   String get id => 'syosetu';
   @override
   String get name => 'Syosetu (小説家になろう)';
+
+  @override
+  String? get nativeName => '小説家になろう';
   @override
   String? get description =>
       'Largest Japanese web-novel platform — 1M+ works, free, no signup';

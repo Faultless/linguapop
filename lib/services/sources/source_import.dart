@@ -83,6 +83,67 @@ class SourceImporter {
     return feedNovelId;
   }
 
+  /// Import a run of articles from one feed in a single library write.
+  ///
+  /// Importing one at a time meant one Hive write and one provider
+  /// invalidation per article, so a ten-article sync rebuilt the front page
+  /// ten times while the user was looking at it. Here the network work happens
+  /// first and the whole batch is committed once, so the page updates exactly
+  /// once per source.
+  ///
+  /// Individual fetch failures are skipped rather than aborting the batch.
+  /// Returns the number of articles actually added.
+  Future<int> importArticles({
+    required FeedSource source,
+    required List<ArticleStub> stubs,
+    void Function(int done, int total)? onProgress,
+    bool Function()? isCancelled,
+    Duration delay = const Duration(milliseconds: 250),
+  }) async {
+    final fetched = <Chapter>[];
+    for (var i = 0; i < stubs.length; i++) {
+      if (isCancelled?.call() ?? false) break;
+      onProgress?.call(i + 1, stubs.length);
+      try {
+        final chapter = await source.fetch(stubs[i]);
+        chapter.imageUrl ??= stubs[i].imageUrl;
+        chapter.imageUrl = absoluteImageUrl(
+            chapter.imageUrl, chapter.sourceUrl ?? stubs[i].sourceUrl);
+        fetched.add(chapter);
+      } catch (_) {
+        // One unreachable article shouldn't cost the reader the other nine.
+      }
+      if (i < stubs.length - 1) await Future<void>.delayed(delay);
+    }
+    if (fetched.isEmpty) return 0;
+
+    final feedNovelId = 'feed:${source.id}';
+    final existing = _novels.findById(feedNovelId);
+    final body = existing == null ? null : await _novels.loadBody(feedNovelId);
+    if (existing == null || body == null) {
+      await _createFeedNovel(feedNovelId, source, fetched);
+      return fetched.length;
+    }
+    final have = {
+      for (final c in body.chapters)
+        if (c.sourceUrl != null) c.sourceUrl!,
+    };
+    final fresh = <Chapter>[];
+    for (final c in fetched) {
+      if (c.sourceUrl != null && !have.add(c.sourceUrl!)) continue;
+      fresh.add(c);
+    }
+    if (fresh.isEmpty) return 0;
+    final updated = NovelBody(
+      id: feedNovelId,
+      chapters: [...fresh, ...body.chapters],
+    );
+    await _novels.saveBody(updated);
+    await _novels.updateMeta(
+        existing.copyWith(chapterCount: updated.chapters.length));
+    return fresh.length;
+  }
+
   /// Remove a single article (by its sourceUrl) from a feed's rolling novel.
   /// Deletes the rolling novel entirely when its last article is removed.
   Future<void> removeArticle({

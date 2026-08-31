@@ -20,6 +20,10 @@ import '../widgets/web_source_notice.dart';
 
 const _kAllSources = 'all';
 
+/// The combined edition's own masthead — "Kotoba Shimbun", the word paper.
+const _kAllPapersTitle = '言葉新聞';
+const _kAllPapersOverline = 'Kotoba Shimbun · LinguaPop';
+
 /// The front page: every imported feed article laid out as a newspaper —
 /// masthead, a rack of papers you can switch between, and two columns of
 /// headlines you scroll straight through instead of paging article by
@@ -44,11 +48,35 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
   bool _cancelRequested = false;
   FeedSyncProgress? _progress;
 
+  /// Last list we successfully rendered. The articles provider recomputes on
+  /// every library write, and dropping to a spinner each time made a sync look
+  /// like the page was reloading under the reader. Holding the previous
+  /// edition means the page only ever changes by gaining stories.
+  List<NewsArticle>? _lastArticles;
+
+  /// Papers the stand carries, honouring the source manager.
+  List<FeedSource> _enabledFeeds() {
+    final all = ref.read(sourceRegistryProvider).feedSources.toList();
+    final ids = ref.read(readerPrefsProvider).enabledSourceIds;
+    if (ids.isEmpty) return all;
+    return all.where((s) => ids.contains(s.id)).toList();
+  }
+
   /// Feed sources the current paper selection covers.
   List<FeedSource> _selectedSources() {
-    final all = ref.read(sourceRegistryProvider).feedSources.toList();
+    final all = _enabledFeeds();
     if (_paper == _kAllSources) return all;
     return all.where((s) => s.id == _paper).toList();
+  }
+
+  /// Move one paper along the rack, wrapping at both ends. Bound to a
+  /// horizontal swipe so reading mode needs no rack at all.
+  void _shiftPaper(int delta) {
+    final ids = [_kAllSources, for (final s in _enabledFeeds()) s.id];
+    if (ids.length < 2) return;
+    final current = ids.indexOf(_paper);
+    final next = ((current < 0 ? 0 : current) + delta) % ids.length;
+    setState(() => _paper = ids[next < 0 ? next + ids.length : next]);
   }
 
   Future<void> _fetch(FeedFetchMode mode) async {
@@ -145,64 +173,102 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
     final articlesAsync = ref.watch(newsArticlesProvider);
     final readSet = ref.watch(newsReadProvider);
     final registry = ref.watch(sourceRegistryProvider);
-    final viewMode = ref.watch(readerPrefsProvider).newsViewMode;
-    final feedSources = registry.feedSources.toList();
+    final prefs = ref.watch(readerPrefsProvider);
+    final simple = prefs.simpleMode;
+    final viewMode = simple ? LibraryViewMode.grid : prefs.newsViewMode;
+    final allFeeds = registry.feedSources.toList();
+    final feedSources = prefs.enabledSourceIds.isEmpty
+        ? allFeeds
+        : allFeeds
+            .where((s) => prefs.enabledSourceIds.contains(s.id))
+            .toList();
+    final carried = {for (final s in feedSources) s.id};
 
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 48,
         scrolledUnderElevation: 0,
-        title: const Text('Front page',
-            style: TextStyle(fontSize: 15, letterSpacing: 0.4)),
+        title: const Text('新聞',
+            style: TextStyle(
+                fontFamily: 'serif',
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2)),
         actions: [
-          ViewModeButton(
-            mode: viewMode,
-            labelOverrides: const {LibraryViewMode.grid: 'Front page'},
-            iconOverrides: const {
-              LibraryViewMode.grid: Icons.view_column_outlined
-            },
-            onChanged: (m) =>
-                ref.read(readerPrefsProvider.notifier).setNewsViewMode(m),
-          ),
-          IconButton(
-            tooltip: _unreadOnly ? 'Showing unread only' : 'Show unread only',
-            onPressed: () => setState(() => _unreadOnly = !_unreadOnly),
-            icon: Icon(_unreadOnly
-                ? Icons.mark_email_unread
-                : Icons.mark_email_unread_outlined),
-          ),
+          if (!simple) ...[
+            ViewModeButton(
+              mode: viewMode,
+              labelOverrides: const {LibraryViewMode.grid: 'Front page'},
+              iconOverrides: const {
+                LibraryViewMode.grid: Icons.view_column_outlined
+              },
+              onChanged: (m) =>
+                  ref.read(readerPrefsProvider.notifier).setNewsViewMode(m),
+            ),
+            IconButton(
+              tooltip: _unreadOnly ? 'Showing unread only' : 'Show unread only',
+              onPressed: () => setState(() => _unreadOnly = !_unreadOnly),
+              icon: Icon(_unreadOnly
+                  ? Icons.mark_email_unread
+                  : Icons.mark_email_unread_outlined),
+            ),
+          ],
           IconButton(
             tooltip: _syncing ? 'Stop fetching' : 'Fetch stories',
             onPressed: _syncing
                 ? () => setState(() => _cancelRequested = true)
-                : _pickFetchMode,
+                : (simple
+                    ? () => _fetch(FeedFetchMode.today)
+                    : _pickFetchMode),
             icon: _syncing
                 ? const Icon(Icons.stop_circle_outlined)
                 : const Icon(Icons.download_outlined),
           ),
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'read-all') _markAllRead();
-              if (v == 'browse') context.go('/sources');
-            },
-            itemBuilder: (ctx) => const [
-              PopupMenuItem(value: 'read-all', child: Text('Mark all as read')),
-              PopupMenuItem(value: 'browse', child: Text('Browse sources')),
-            ],
-          ),
+          if (simple)
+            IconButton(
+              tooltip: 'Settings',
+              onPressed: () => context.go('/settings'),
+              icon: const Icon(Icons.more_horiz),
+            )
+          else
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'read-all') _markAllRead();
+                if (v == 'browse') context.go('/sources');
+                if (v == 'papers') context.go('/sources/manage');
+              },
+              itemBuilder: (ctx) => const [
+                PopupMenuItem(
+                    value: 'read-all', child: Text('Mark all as read')),
+                PopupMenuItem(value: 'papers', child: Text('Papers…')),
+                PopupMenuItem(value: 'browse', child: Text('Browse sources')),
+              ],
+            ),
         ],
       ),
       body: SafeArea(
-        child: articlesAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Failed to load: $e')),
-          data: (articles) {
+        child: Builder(
+          builder: (context) {
+            final articles = articlesAsync.valueOrNull ?? _lastArticles;
+            if (articles == null) {
+              if (articlesAsync.hasError) {
+                return Center(child: Text('Failed to load: ${articlesAsync.error}'));
+              }
+              return const Center(child: CircularProgressIndicator());
+            }
+            _lastArticles = articles;
+
             bool isRead(NewsArticle a) => readSet
                 .contains(NewsReadNotifier.keyFor(a.novelId, a.chapter.id));
-            String nameOf(NewsArticle a) =>
-                registry.byId(a.sourceId)?.name ?? a.sourceId;
+            String nameOf(NewsArticle a) {
+              final src = registry.byId(a.sourceId);
+              return src?.nativeName ?? src?.name ?? a.sourceId;
+            }
 
-            var items = articles;
+            // Stories from a paper that's been taken off the stand stay in the
+            // library but leave the front page.
+            var items =
+                articles.where((a) => carried.contains(a.sourceId)).toList();
             if (_paper != _kAllSources) {
               items = items.where((a) => a.sourceId == _paper).toList();
             }
@@ -223,29 +289,50 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
               papers: [
                 (
                   id: _kAllSources,
-                  name: 'All papers',
+                  name: '全紙',
                   unread: unreadBySource.values.fold(0, (a, b) => a + b),
                 ),
                 for (final s in feedSources)
-                  (id: s.id, name: s.name, unread: unreadBySource[s.id] ?? 0),
+                  (
+                    id: s.id,
+                    name: s.nativeName ?? s.name,
+                    unread: unreadBySource[s.id] ?? 0,
+                  ),
               ],
               selected: _paper,
               onSelected: (id) => setState(() => _paper = id),
             );
 
+            final papers = [_kAllSources, for (final s in feedSources) s.id];
+            final paperIndex = papers.indexOf(_paper);
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                rack,
+                if (simple)
+                  _PaperDots(count: papers.length, index: paperIndex)
+                else
+                  rack,
                 const NewsRule(alpha: 0.35),
                 if (_syncing) _SyncBanner(progress: _progress),
                 Expanded(
-                  child: RefreshIndicator(
+                  // Swipe left/right to change paper. The page under this
+                  // scrolls vertically, so a horizontal drag is unambiguous —
+                  // in reading mode it's the only way to change paper.
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragEnd: (d) {
+                      final v = d.primaryVelocity ?? 0;
+                      if (v < -250) _shiftPaper(1);
+                      if (v > 250) _shiftPaper(-1);
+                    },
+                    child: RefreshIndicator(
                     onRefresh: () => _fetch(FeedFetchMode.today),
                     child: viewMode == LibraryViewMode.grid
                         ? _FrontPage(
                             items: items,
                             paperTitle: _paperTitle(feedSources),
+                            paperOverline: _paperOverline(feedSources),
                             showSource: _paper == _kAllSources,
                             totalCount: articles.length,
                             isRead: isRead,
@@ -254,6 +341,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
                             onDelete: _confirmDelete,
                             onFetch: _fetch,
                             syncing: _syncing,
+                            simple: simple,
                           )
                         : _LinearNews(
                             items: items,
@@ -266,9 +354,10 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
                             syncing: _syncing,
                             hasAnyArticles: articles.isNotEmpty,
                           ),
+                    ),
                   ),
                 ),
-                if (items.isNotEmpty)
+                if (items.isNotEmpty && !simple)
                   Container(
                     color: cs.onSurface.withValues(alpha: 0.03),
                     padding: const EdgeInsets.symmetric(
@@ -277,8 +366,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            '${items.length} stor${items.length == 1 ? "y" : "ies"}'
-                            '${_unreadOnly ? " unread" : ""}',
+                            '${_unreadOnly ? "未読" : "全"}${items.length}件',
                             style: NewsprintStyle.meta(cs, size: 9.5).copyWith(
                                 color: cs.onSurface.withValues(alpha: 0.5)),
                           ),
@@ -299,12 +387,23 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
     );
   }
 
+  /// Masthead name: the outlet in its own script, or the paper of record we
+  /// print when every source is folded into one edition.
   String _paperTitle(List<FeedSource> feedSources) {
-    if (_paper == _kAllSources) return 'The Front Page';
+    if (_paper == _kAllSources) return _kAllPapersTitle;
+    for (final s in feedSources) {
+      if (s.id == _paper) return s.nativeName ?? s.name;
+    }
+    return _kAllPapersTitle;
+  }
+
+  /// Romaji line above the masthead.
+  String _paperOverline(List<FeedSource> feedSources) {
+    if (_paper == _kAllSources) return _kAllPapersOverline;
     for (final s in feedSources) {
       if (s.id == _paper) return s.name;
     }
-    return 'The Front Page';
+    return _kAllPapersOverline;
   }
 
   Future<void> _markAllRead() async {
@@ -331,6 +430,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
 class _FrontPage extends StatelessWidget {
   final List<NewsArticle> items;
   final String paperTitle;
+  final String paperOverline;
   final bool showSource;
   final int totalCount;
   final bool Function(NewsArticle) isRead;
@@ -339,10 +439,12 @@ class _FrontPage extends StatelessWidget {
   final Future<void> Function(NewsArticle) onDelete;
   final Future<void> Function(FeedFetchMode) onFetch;
   final bool syncing;
+  final bool simple;
 
   const _FrontPage({
     required this.items,
     required this.paperTitle,
+    required this.paperOverline,
     required this.showSource,
     required this.totalCount,
     required this.isRead,
@@ -351,6 +453,7 @@ class _FrontPage extends StatelessWidget {
     required this.onDelete,
     required this.onFetch,
     required this.syncing,
+    this.simple = false,
   });
 
   @override
@@ -367,11 +470,13 @@ class _FrontPage extends StatelessWidget {
         if (i == 0) {
           return _FrontPageHeader(
             title: paperTitle,
+            overline: paperOverline,
             count: items.length,
             syncing: syncing,
             onFetch: onFetch,
             empty: items.isEmpty,
             hasAnyArticles: totalCount > 0,
+            simple: simple,
           );
         }
         final row = rows[i - 1];
@@ -417,18 +522,22 @@ class _FrontPage extends StatelessWidget {
 
 class _FrontPageHeader extends StatelessWidget {
   final String title;
+  final String overline;
   final int count;
   final bool syncing;
   final bool empty;
   final bool hasAnyArticles;
+  final bool simple;
   final Future<void> Function(FeedFetchMode) onFetch;
   const _FrontPageHeader({
     required this.title,
+    required this.overline,
     required this.count,
     required this.syncing,
     required this.empty,
     required this.hasAnyArticles,
     required this.onFetch,
+    this.simple = false,
   });
 
   @override
@@ -440,31 +549,40 @@ class _FrontPageHeader extends StatelessWidget {
       children: [
         NewspaperMasthead(
           title: title,
-          overline: 'LinguaPop',
-          leftMeta: _longDate(now),
-          rightMeta: '$count stories',
+          overline: overline,
+          leftMeta: _japaneseDate(now),
+          rightMeta: '全$count件',
+          seal: _editionSeal(now),
         ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: syncing ? null : () => onFetch(FeedFetchMode.today),
-                icon: const Icon(Icons.today_outlined, size: 17),
-                label: const Text("Today's paper"),
+        if (simple)
+          // Reading mode keeps one verb on the page: get the paper.
+          OutlinedButton(
+            onPressed: syncing ? null : () => onFetch(FeedFetchMode.today),
+            child: const Text('今日の新聞'),
+          )
+        else
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed:
+                      syncing ? null : () => onFetch(FeedFetchMode.today),
+                  icon: const Icon(Icons.today_outlined, size: 17),
+                  label: const Text("Today's paper"),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed:
-                    syncing ? null : () => onFetch(FeedFetchMode.latest10),
-                icon: const Icon(Icons.download_outlined, size: 17),
-                label: const Text('Latest 10'),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed:
+                      syncing ? null : () => onFetch(FeedFetchMode.latest10),
+                  icon: const Icon(Icons.download_outlined, size: 17),
+                  label: const Text('Latest 10'),
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         if (empty)
           Padding(
             padding: const EdgeInsets.only(top: 40),
@@ -533,6 +651,36 @@ class _PaperRack extends StatelessWidget {
             onTap: () => onSelected(p.id),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Where you are on the rack when there's no rack: one tick per paper, the
+/// current one inked. Not a control — swiping is.
+class _PaperDots extends StatelessWidget {
+  final int count;
+  final int index;
+  const _PaperDots({required this.count, required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (count < 2) return const SizedBox(height: 10);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (var i = 0; i < count; i++)
+            Container(
+              width: i == index ? 16 : 8,
+              height: 2,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              color: cs.onSurface
+                  .withValues(alpha: i == index ? 0.75 : 0.22),
+            ),
+        ],
       ),
     );
   }
@@ -640,30 +788,31 @@ class _LinearNews extends StatelessWidget {
 }
 
 String _dayLabel(int? publishedAt) {
-  if (publishedAt == null) return 'Undated';
+  if (publishedAt == null) return '日付なし';
   final dt = DateTime.fromMillisecondsSinceEpoch(publishedAt);
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   final day = DateTime(dt.year, dt.month, dt.day);
   final diff = today.difference(day).inDays;
-  if (diff == 0) return 'Today';
-  if (diff == 1) return 'Yesterday';
-  return '${day.year}-${day.month.toString().padLeft(2, "0")}-${day.day.toString().padLeft(2, "0")}';
+  if (diff == 0) return '今日';
+  if (diff == 1) return '昨日';
+  return '${day.month}月${day.day}日';
 }
+
+const _weekdayKanji = ['月', '火', '水', '木', '金', '土', '日'];
+
+/// "2026年8月31日（月）" — the dateline every Japanese daily runs.
+String _japaneseDate(DateTime d) =>
+    '${d.year}年${d.month}月${d.day}日（${_weekdayKanji[d.weekday - 1]}）';
+
+/// Morning or evening edition, the way a paper stamps it.
+String _editionSeal(DateTime d) => d.hour < 15 ? '朝刊' : '夕刊';
 
 String _timeLabel(int? publishedAt) {
   if (publishedAt == null) return '';
   final dt = DateTime.fromMillisecondsSinceEpoch(publishedAt);
   return '${dt.hour.toString().padLeft(2, "0")}:${dt.minute.toString().padLeft(2, "0")}';
 }
-
-const _monthNames = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-
-String _longDate(DateTime d) =>
-    '${_monthNames[d.month - 1]} ${d.day}, ${d.year}';
 
 class _DayHeader extends StatelessWidget {
   final String label;

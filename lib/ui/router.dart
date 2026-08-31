@@ -7,6 +7,7 @@ import 'screens/library_screen.dart';
 import 'screens/news_screen.dart';
 import 'screens/reader_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/source_manager_screen.dart';
 import 'screens/sources_screen.dart';
 import 'screens/vocab_screen.dart';
 
@@ -54,6 +55,13 @@ final appRouter = GoRouter(
           path: 'sources',
           name: 'sources',
           builder: (ctx, st) => const SourcesScreen(),
+          routes: [
+            GoRoute(
+              path: 'manage',
+              name: 'source-manager',
+              builder: (ctx, st) => const SourceManagerScreen(),
+            ),
+          ],
         ),
         GoRoute(
           path: 'news',

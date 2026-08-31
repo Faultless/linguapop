@@ -87,11 +87,42 @@ void main() {
       expect(ratio, lessThan(2.0));
     });
 
-    test('a story with an image is estimated taller than one without', () {
-      final withImage = item('a', image: 'https://example.com/a.jpg');
-      final without = item('a');
-      expect(FrontPageBand.estimateHeight(withImage, 180),
-          greaterThan(FrontPageBand.estimateHeight(without, 180)));
+    test('a story with a cut is estimated taller than a bare one', () {
+      // Same title everywhere so only the picture box moves the number.
+      const title = '同じ長さの見出し';
+      final ids = List.generate(60, (i) => 'story-$i');
+      final bare =
+          ids.firstWhere((id) => !FrontPageStory.wantsPlaceholder(id));
+      final drawn = ids.firstWhere(FrontPageStory.wantsPlaceholder);
+
+      double h(String id, {String? image}) => FrontPageBand.estimateHeight(
+          item(id, title: title, image: image), 180);
+
+      expect(h(drawn), greaterThan(h(bare)),
+          reason: 'a drawn placeholder takes the same room as a photo');
+      expect(h(bare, image: 'https://example.com/a.jpg'), greaterThan(h(bare)));
+    });
+  });
+
+  group('image placeholders', () {
+    test('the same story always gets the same answer', () {
+      for (final id in ['a', 'story-7', '毎日/12345']) {
+        expect(FrontPageStory.wantsPlaceholder(id),
+            FrontPageStory.wantsPlaceholder(id));
+      }
+    });
+
+    test('a page of picture-less stories gets a mix, not all or nothing', () {
+      final ids = List.generate(60, (i) => 'story-$i');
+      final drawn = ids.where(FrontPageStory.wantsPlaceholder).length;
+      expect(drawn, greaterThan(10));
+      expect(drawn, lessThan(ids.length));
+    });
+
+    test('the placeholder glyph is the headline\'s first kanji', () {
+      expect(NewsprintPlaceholder.glyphFor('政府が発表'), '政');
+      expect(NewsprintPlaceholder.glyphFor('あすの てんき'), '新');
+      expect(NewsprintPlaceholder.glyphFor(''), '新');
     });
   });
 

@@ -10,9 +10,9 @@ import '../../providers/collections_provider.dart';
 import '../../providers/novels_provider.dart';
 import '../../providers/prefs_provider.dart';
 import '../../services/sample/sample_content.dart';
-import '../widgets/book_cover.dart';
 import '../widgets/mini_toast.dart';
 import '../widgets/novel_card.dart';
+import '../widgets/shelf.dart';
 import '../widgets/view_mode_button.dart';
 
 enum _StatusFilter { all, reading, finished, unread }
@@ -32,15 +32,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   String? _collectionId;
   bool _favoritesOnly = false;
   final Set<String> _tagFilter = <String>{};
-
-  bool get _anyFilterActive =>
-      _status != _StatusFilter.all ||
-      _contentType != null ||
-      _jlptLevel != null ||
-      _language != null ||
-      _collectionId != null ||
-      _favoritesOnly ||
-      _tagFilter.isNotEmpty;
 
   /// A rolling news feed isn't a book — opening it drops you on that paper's
   /// front page rather than at whichever article you last read.
@@ -71,42 +62,48 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final collections = ref.watch(collectionsProvider);
     final filtered = _filter(novels);
     final sorted = _sort(filtered, prefs.librarySort);
-    final continueReading = _continueReading(novels);
+
+    // Reading mode: shelves, the front page, the reader. Nothing else on
+    // screen to decide about.
+    final simple = prefs.simpleMode;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('LinguaPop'),
         actions: [
-          ViewModeButton(
-            mode: prefs.libraryViewMode,
-            onChanged: (m) =>
-                ref.read(readerPrefsProvider.notifier).setLibraryViewMode(m),
-          ),
-          IconButton(
-            tooltip: 'Sort',
-            icon: const Icon(Icons.sort),
-            onPressed: () => _showSortSheet(context),
-          ),
+          if (!simple) ...[
+            ViewModeButton(
+              mode: prefs.libraryViewMode,
+              onChanged: (m) =>
+                  ref.read(readerPrefsProvider.notifier).setLibraryViewMode(m),
+            ),
+            IconButton(
+              tooltip: 'Sort',
+              icon: const Icon(Icons.sort),
+              onPressed: () => _showSortSheet(context),
+            ),
+          ],
           IconButton(
             tooltip: 'News',
             icon: const Icon(Icons.newspaper_outlined),
             onPressed: () => context.go('/news'),
           ),
-          IconButton(
-            tooltip: 'Vocab',
-            icon: const Icon(Icons.style_outlined),
-            onPressed: () => context.go('/vocab'),
-          ),
+          if (!simple)
+            IconButton(
+              tooltip: 'Vocab',
+              icon: const Icon(Icons.style_outlined),
+              onPressed: () => context.go('/vocab'),
+            ),
           IconButton(
             tooltip: 'Settings',
-            icon: const Icon(Icons.settings_outlined),
+            icon: Icon(simple ? Icons.more_horiz : Icons.settings_outlined),
             onPressed: () => context.go('/settings'),
           ),
         ],
       ),
       body: Column(
         children: [
-          if (novels.isNotEmpty)
+          if (novels.isNotEmpty && !simple)
             _FilterBar(
               status: _status,
               onStatusChanged: (s) => setState(() => _status = s),
@@ -149,17 +146,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     ? _EmptyFilter(onClear: _clearFilters)
                     : CustomScrollView(
                         slivers: [
-                          if (!_anyFilterActive && continueReading.isNotEmpty)
-                            SliverToBoxAdapter(
-                              child: _ContinueReadingRow(
-                                novels: continueReading,
-                                onTap: (m) => _open(context, m),
-                                onLongPress: (m) => context.go('/book/${m.id}'),
-                              ),
-                            ),
                           _LibrarySliver(
                             novels: sorted,
-                            viewMode: prefs.libraryViewMode,
+                            viewMode: simple
+                                ? LibraryViewMode.grid
+                                : prefs.libraryViewMode,
                             onTap: (m) => _open(context, m),
                             onOpenDetail: (m) => context.go('/book/${m.id}'),
                           ),
@@ -168,11 +159,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddSheet(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Add'),
-      ),
+      floatingActionButton: simple
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: () => _showAddSheet(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Add'),
+            ),
     );
   }
 
@@ -213,17 +206,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   /// In-progress books, most recently read first. Drives the "Continue reading"
   /// row. Falls back to addedAt for books opened before lastReadAt existed.
-  List<NovelMeta> _continueReading(List<NovelMeta> all) {
-    final list = all.where((m) {
-      if (m.chapterCount == 0) return false;
-      final p = m.lastReadChapter / m.chapterCount;
-      return p > 0 && p < 1;
-    }).toList()
-      ..sort((a, b) =>
-          (b.lastReadAt ?? b.addedAt).compareTo(a.lastReadAt ?? a.addedAt));
-    return list.take(12).toList();
-  }
-
   List<NovelMeta> _sort(List<NovelMeta> ns, LibrarySort s) {
     final list = [...ns];
     switch (s) {
@@ -352,32 +334,34 @@ class _LibrarySliver extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (viewMode) {
       case LibraryViewMode.grid:
-        // Target ~150 px wide tiles, but never fewer than 2 columns; clamp at
-        // 6 for tablets/desktops so things don't look comically small.
+        // Shelves. Smaller covers than a plain grid so a shelf holds more,
+        // and one row of covers per shelf board.
         final w = MediaQuery.sizeOf(context).width;
-        final cols = (w / 165).floor().clamp(2, 6);
+        final cols = (w / 124).floor().clamp(3, 8);
+        final shelves = (novels.length / cols).ceil();
         return SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 96),
-          sliver: SliverGrid(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: cols,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 8,
-              // Cover (2:3) + ~2-line title + author. Generous enough to never
-              // clip the text block.
-              childAspectRatio: 0.50,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (ctx, i) {
-                final m = novels[i];
-                return NovelCard(
-                  meta: m,
-                  onTap: () => onTap(m),
-                  onLongPress: () => onOpenDetail(m),
-                );
-              },
-              childCount: novels.length,
-            ),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
+          sliver: SliverList.builder(
+            itemCount: shelves,
+            itemBuilder: (ctx, row) {
+              final start = row * cols;
+              final count = novels.length - start < cols
+                  ? novels.length - start
+                  : cols;
+              return BookShelf(
+                columns: cols,
+                count: count,
+                itemBuilder: (c, i, width) {
+                  final m = novels[start + i];
+                  return NovelCard(
+                    meta: m,
+                    width: width,
+                    onTap: () => onTap(m),
+                    onLongPress: () => onOpenDetail(m),
+                  );
+                },
+              );
+            },
           ),
         );
       case LibraryViewMode.list:
@@ -416,91 +400,6 @@ class _LibrarySliver extends StatelessWidget {
           ),
         );
     }
-  }
-}
-
-class _ContinueReadingRow extends StatelessWidget {
-  final List<NovelMeta> novels;
-  final ValueChanged<NovelMeta> onTap;
-  final ValueChanged<NovelMeta> onLongPress;
-  const _ContinueReadingRow({
-    required this.novels,
-    required this.onTap,
-    required this.onLongPress,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-          child: Text('Continue reading',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: cs.onSurface.withValues(alpha: 0.85))),
-        ),
-        SizedBox(
-          height: 150,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: novels.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (ctx, i) {
-              final m = novels[i];
-              final progress = (m.lastReadChapter / m.chapterCount)
-                  .clamp(0.0, 1.0);
-              return GestureDetector(
-                onTap: () => onTap(m),
-                onLongPress: () => onLongPress(m),
-                child: SizedBox(
-                  width: 92,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Stack(
-                        children: [
-                          BookCover(meta: m, width: 92),
-                          Positioned(
-                            left: 6,
-                            right: 6,
-                            bottom: 5,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(3),
-                              child: LinearProgressIndicator(
-                                value: progress,
-                                minHeight: 3,
-                                backgroundColor:
-                                    Colors.black.withValues(alpha: 0.35),
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(m.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 11, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Divider(
-          height: 18,
-          color: cs.onSurface.withValues(alpha: 0.06),
-        ),
-      ],
-    );
   }
 }
 
@@ -858,25 +757,39 @@ class _EmptyLibraryState extends ConsumerState<_EmptyLibrary> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    // Reading mode has no "Add" button to point at — the way in is the
+    // newsstand, so send them there.
+    final simple = ref.watch(readerPrefsProvider).simpleMode;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.menu_book_outlined,
+            Icon(simple ? Icons.newspaper_outlined : Icons.menu_book_outlined,
                 size: 64, color: cs.primary.withValues(alpha: 0.7)),
             const SizedBox(height: 16),
-            const Text('Your library is empty',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            Text(simple ? 'Nothing on the shelves yet' : 'Your library is empty',
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Text(
-              kIsWeb
-                  ? 'Tap "Add" to import an EPUB / TXT file, or try the sample content below.'
-                  : 'Tap "Add" to browse sources or import an EPUB / TXT file.',
+              simple
+                  ? 'Open the newsstand and pull today\'s paper.'
+                  : kIsWeb
+                      ? 'Tap "Add" to import an EPUB / TXT file, or try the sample content below.'
+                      : 'Tap "Add" to browse sources or import an EPUB / TXT file.',
               textAlign: TextAlign.center,
               style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
             ),
+            if (simple && !kIsWeb) ...[
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: () => context.go('/news'),
+                icon: const Icon(Icons.newspaper_outlined),
+                label: const Text('Go to the newsstand'),
+              ),
+            ],
             if (kIsWeb) ...[
               const SizedBox(height: 20),
               FilledButton.icon(

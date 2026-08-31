@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- sumi ink; keep in sync with INK in tool/make_icon.py -->
+    <color name="ic_launcher_background">#14161A</color>
+</resources>

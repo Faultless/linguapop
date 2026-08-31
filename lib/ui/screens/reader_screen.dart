@@ -602,13 +602,28 @@ class _ScrollChapterViewState extends State<_ScrollChapterView> {
             itemCount: _blocks.length + 2,
             itemBuilder: (ctx, i) {
               if (i == 0) {
+                // The headline is prose too — colour-code and tap it like the
+                // body, since it's where a news article's hardest vocabulary
+                // usually is.
                 return Padding(
                   padding: EdgeInsets.only(bottom: paragraphGap * 1.5),
-                  child: Text(widget.chapter.title,
-                      style: baseStyle.copyWith(
-                          fontSize: widget.prefs.fontSize + 6,
-                          fontWeight: FontWeight.w700,
-                          height: 1.25)),
+                  child: JapaneseText(
+                    text: widget.chapter.title,
+                    prefs: widget.prefs,
+                    baseStyle: baseStyle.copyWith(
+                        fontSize: widget.prefs.fontSize + 6,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25),
+                    onTapToken: (tk) => showWordPopover(
+                      context,
+                      token: tk,
+                      exampleSentence: widget.chapter.title,
+                      sourceNovelId: widget.novelId,
+                      sourceNovelTitle: widget.novelTitle,
+                      sourceChapterId: widget.chapter.id,
+                      sourceChapterIndex: widget.chapterIndex,
+                    ),
+                  ),
                 );
               }
               if (i == _blocks.length + 1) {
@@ -966,11 +981,23 @@ class _PageBody extends StatelessWidget {
               if (showTitle)
                 Padding(
                   padding: EdgeInsets.only(bottom: paragraphGap * 1.5),
-                  child: Text(chapter.title,
-                      style: baseStyle.copyWith(
-                          fontSize: prefs.fontSize + 6,
-                          fontWeight: FontWeight.w700,
-                          height: 1.25)),
+                  child: JapaneseText(
+                    text: chapter.title,
+                    prefs: prefs,
+                    baseStyle: baseStyle.copyWith(
+                        fontSize: prefs.fontSize + 6,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25),
+                    onTapToken: (tk) => showWordPopover(
+                      context,
+                      token: tk,
+                      exampleSentence: chapter.title,
+                      sourceNovelId: novelId,
+                      sourceNovelTitle: novelTitle,
+                      sourceChapterId: chapter.id,
+                      sourceChapterIndex: chapterIndex,
+                    ),
+                  ),
                 ),
               for (var i = 0; i < blocks.length; i++)
                 Padding(

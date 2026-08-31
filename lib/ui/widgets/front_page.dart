@@ -140,7 +140,10 @@ class FrontPageBand extends StatelessWidget {
     final titleLines = (item.title.runes.length / perLine).ceil().clamp(1, 6);
     var h = 18.0; // meta line
     h += titleLines * headlineSize * 1.18 + 6;
-    if ((item.imageUrl ?? '').isNotEmpty) h += colWidth * 0.58 + 8;
+    if ((item.imageUrl ?? '').isNotEmpty ||
+        FrontPageStory.wantsPlaceholder(item.id)) {
+      h += colWidth * 0.58 + 8;
+    }
     h += 3 * 12 * 1.34; // snippet
     h += 26; // padding + rule
     return h;
@@ -204,10 +207,19 @@ class FrontPageStory extends StatelessWidget {
     final read = item.read;
     final time = frontPageTimeLabel(item.publishedAt);
     final image = item.imageUrl ?? '';
-    final metaText = [
-      if (time.isNotEmpty) time,
-      if (showSource) item.sourceName,
-    ].join(' · ');
+    final cutHeight = columnWidth * 0.56;
+
+    Widget? cut;
+    if (image.isNotEmpty) {
+      cut = NewsThumb(
+        url: image,
+        width: double.infinity,
+        height: cutHeight,
+        radius: 0,
+      );
+    } else if (wantsPlaceholder(item.id)) {
+      cut = NewsprintPlaceholder(seedText: item.title, height: cutHeight);
+    }
 
     return InkWell(
       onTap: onTap,
@@ -219,39 +231,48 @@ class FrontPageStory extends StatelessWidget {
           children: [
             Row(
               children: [
-                if (!read)
-                  Container(
-                    width: 5,
-                    height: 5,
-                    margin: const EdgeInsets.only(right: 5),
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle, color: cs.primary),
+                if (showSource) ...[
+                  Flexible(
+                    child: KickerBox(text: item.sourceName, muted: read),
                   ),
-                Flexible(
-                  child: Text(
-                    metaText,
+                  const SizedBox(width: 5),
+                ],
+                if (time.isNotEmpty)
+                  Text(
+                    time,
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: NewsprintStyle.meta(cs).copyWith(
+                    style: NewsprintStyle.meta(cs, size: 9.5).copyWith(
                         color: read
                             ? cs.onSurface.withValues(alpha: 0.45)
                             : cs.primary),
                   ),
-                ),
-                if (showDifficulty) ...[
-                  const SizedBox(width: 6),
+                const Spacer(),
+                if (showDifficulty)
                   DifficultyBadge(text: item.difficultyText, fontSize: 8.5),
-                ],
               ],
             ),
-            const SizedBox(height: 3),
-            Text(
-              item.title,
-              maxLines: 5,
-              overflow: TextOverflow.ellipsis,
-              style: NewsprintStyle.headline(cs, read: read),
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Unread stories carry the accent rule down the headline.
+                Container(
+                  width: 2.5,
+                  height: 15.0 * 1.18,
+                  margin: const EdgeInsets.only(right: 5, top: 1),
+                  color: read ? Colors.transparent : cs.primary,
+                ),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    maxLines: 5,
+                    overflow: TextOverflow.ellipsis,
+                    style: NewsprintStyle.headline(cs, read: read),
+                  ),
+                ),
+              ],
             ),
-            if (image.isNotEmpty) ...[
+            if (cut != null) ...[
               const SizedBox(height: 6),
               Container(
                 decoration: BoxDecoration(
@@ -259,12 +280,7 @@ class FrontPageStory extends StatelessWidget {
                       Border.all(color: cs.onSurface.withValues(alpha: 0.35)),
                 ),
                 padding: const EdgeInsets.all(2),
-                child: NewsThumb(
-                  url: image,
-                  width: double.infinity,
-                  height: columnWidth * 0.56,
-                  radius: 0,
-                ),
+                child: cut,
               ),
             ],
             if (item.snippet.isNotEmpty) ...[
@@ -284,6 +300,14 @@ class FrontPageStory extends StatelessWidget {
       ),
     );
   }
+
+  /// Whether a story with no scrapeable image still gets a drawn stand-in.
+  ///
+  /// Not every one: a page where every single story carries a picture box
+  /// looks like a template, and a page with none looks broken. Two in three,
+  /// picked deterministically from the story id so a given story always looks
+  /// the same.
+  static bool wantsPlaceholder(String id) => stableSeed(id) % 3 != 0;
 }
 
 String frontPageTimeLabel(int? publishedAt) {

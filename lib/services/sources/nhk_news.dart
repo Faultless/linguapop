@@ -27,6 +27,9 @@ class NhkNewsSource extends FeedSource {
   String get id => 'nhk-news';
   @override
   String get name => 'NHK News';
+
+  @override
+  String? get nativeName => 'NHKニュース';
   @override
   String? get description => 'NHKニュース — full-difficulty daily news';
   @override

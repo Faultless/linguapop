@@ -92,6 +92,51 @@ final List<ReaderTheme> kBuiltinThemes = [
       accent: Color(0xFFF5C56E),
       muted: Color(0xFF686868),
       dark: true),
+
+  // Seasonal papers. Written for the newsstand and the front page — a
+  // washi-toned ground with an ink-dark text colour and a seasonal accent
+  // that carries the masthead rules and kicker boxes — but they're ordinary
+  // reader themes and apply app-wide like any other.
+  const ReaderTheme(
+      id: 'sakura',
+      name: 'Sakura 桜',
+      bg: Color(0xFFFDF2F4),
+      fg: Color(0xFF2E1A20),
+      accent: Color(0xFFC2185B),
+      muted: Color(0xFF9A6B78),
+      dark: false),
+  const ReaderTheme(
+      id: 'momiji',
+      name: 'Autumn 紅葉',
+      bg: Color(0xFFFBF3E4),
+      fg: Color(0xFF2A1A0F),
+      accent: Color(0xFFC2410C),
+      muted: Color(0xFF8A6A4B),
+      dark: false),
+  const ReaderTheme(
+      id: 'matcha',
+      name: 'Matcha 抹茶',
+      bg: Color(0xFFF3F6EA),
+      fg: Color(0xFF1B2412),
+      accent: Color(0xFF4D7C0F),
+      muted: Color(0xFF6B7B58),
+      dark: false),
+  const ReaderTheme(
+      id: 'ai',
+      name: 'Indigo 藍',
+      bg: Color(0xFFEFF3F7),
+      fg: Color(0xFF10202E),
+      accent: Color(0xFF1D4E89),
+      muted: Color(0xFF5C7186),
+      dark: false),
+  const ReaderTheme(
+      id: 'sumi',
+      name: 'Sumi 墨',
+      bg: Color(0xFF14161A),
+      fg: Color(0xFFE8E6E1),
+      accent: Color(0xFFD94F4F),
+      muted: Color(0xFF8A8F98),
+      dark: true),
 ];
 
 ReaderTheme resolveTheme(String themeId, List<ReaderTheme> customThemes) {

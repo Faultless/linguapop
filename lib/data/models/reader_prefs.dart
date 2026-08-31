@@ -114,6 +114,15 @@ class ReaderPrefs {
   /// false the user must rely on tap zones or the bottom-bar arrows.
   final bool swipeToTurnPage;
 
+  /// Reading mode: strip the app back to shelves, the front page and the
+  /// reader. Filters, sorting, view-mode switching, the import button and the
+  /// long settings list all disappear; papers are changed by swiping.
+  final bool simpleMode;
+
+  /// Feed sources the newsstand carries. Empty means "all registered
+  /// sources" — a fresh install shouldn't have to opt in to anything.
+  final List<String> enabledSourceIds;
+
   const ReaderPrefs({
     required this.fontFamily,
     required this.fontSize,
@@ -138,6 +147,8 @@ class ReaderPrefs {
     required this.pageCharLimit,
     required this.tapZonesEnabled,
     required this.swipeToTurnPage,
+    required this.simpleMode,
+    required this.enabledSourceIds,
   });
 
   static ReaderPrefs defaults() => ReaderPrefs(
@@ -164,6 +175,8 @@ class ReaderPrefs {
         pageCharLimit: 1200,
         tapZonesEnabled: true,
         swipeToTurnPage: true,
+        simpleMode: true,
+        enabledSourceIds: const [],
       );
 
   ReaderPrefs copyWith({
@@ -190,6 +203,8 @@ class ReaderPrefs {
     int? pageCharLimit,
     bool? tapZonesEnabled,
     bool? swipeToTurnPage,
+    bool? simpleMode,
+    List<String>? enabledSourceIds,
   }) =>
       ReaderPrefs(
         fontFamily: fontFamily ?? this.fontFamily,
@@ -216,6 +231,8 @@ class ReaderPrefs {
         pageCharLimit: pageCharLimit ?? this.pageCharLimit,
         tapZonesEnabled: tapZonesEnabled ?? this.tapZonesEnabled,
         swipeToTurnPage: swipeToTurnPage ?? this.swipeToTurnPage,
+        simpleMode: simpleMode ?? this.simpleMode,
+        enabledSourceIds: enabledSourceIds ?? this.enabledSourceIds,
       );
 
   Map<String, dynamic> toJson() => {
@@ -242,6 +259,8 @@ class ReaderPrefs {
         'pageCharLimit': pageCharLimit,
         'tapZonesEnabled': tapZonesEnabled,
         'swipeToTurnPage': swipeToTurnPage,
+        'simpleMode': simpleMode,
+        'enabledSourceIds': enabledSourceIds,
       };
 
   factory ReaderPrefs.fromJson(Map<String, dynamic> j) {
@@ -297,6 +316,10 @@ class ReaderPrefs {
       pageCharLimit: (j['pageCharLimit'] as num?)?.toInt() ?? d.pageCharLimit,
       tapZonesEnabled: j['tapZonesEnabled'] as bool? ?? d.tapZonesEnabled,
       swipeToTurnPage: j['swipeToTurnPage'] as bool? ?? d.swipeToTurnPage,
+      simpleMode: j['simpleMode'] as bool? ?? d.simpleMode,
+      enabledSourceIds: ((j['enabledSourceIds'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
     );
   }
 }

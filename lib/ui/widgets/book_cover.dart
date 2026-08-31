@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/novel.dart';
 import '../../providers/covers_provider.dart';
+import 'newspaper.dart';
 
 /// A book-shaped cover image. If [coverUrl] is set we load it (data: URIs,
 /// remote URLs, and the `local:` scheme for device-picked images all work).
@@ -47,6 +48,13 @@ class BookCover extends ConsumerWidget {
             children: [
               if (hasUrl)
                 _coverImage(ref, url)
+              else if (meta.sourceType == SourceType.feed)
+                // A news feed isn't a book — it sits on the shelf as a folded
+                // paper with the outlet's name on the masthead.
+                NewspaperFront(
+                  outlet: meta.title,
+                  kicker: meta.chapterCount > 0 ? '${meta.chapterCount}件' : null,
+                )
               else
                 _ProceduralCover(meta: meta),
               if (overlayBadges) _CoverOverlay(meta: meta),

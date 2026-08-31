@@ -118,19 +118,23 @@ class FeedSync {
         final imported = await _imported(source.id);
         final fresh = selectForMode(stubs, imported, mode);
         considered += fresh.length;
-        for (var i = 0; i < fresh.length; i++) {
-          if (isCancelled?.call() ?? false) {
-            return FeedSyncResult(
-                added: added,
-                considered: considered,
-                failedSources: failed,
-                cancelled: true);
-          }
-          onProgress?.call(
-              FeedSyncProgress(source.name, i + 1, fresh.length));
-          await _importer.importArticle(source: source, stub: fresh[i]);
-          added++;
-          if (i < fresh.length - 1) await Future<void>.delayed(_delay);
+        if (fresh.isEmpty) continue;
+        // One commit per source: the front page redraws once when the batch
+        // lands, not once per article fetched.
+        added += await _importer.importArticles(
+          source: source,
+          stubs: fresh,
+          delay: _delay,
+          isCancelled: isCancelled,
+          onProgress: (done, total) =>
+              onProgress?.call(FeedSyncProgress(source.name, done, total)),
+        );
+        if (isCancelled?.call() ?? false) {
+          return FeedSyncResult(
+              added: added,
+              considered: considered,
+              failedSources: failed,
+              cancelled: true);
         }
       } catch (_) {
         failed.add(source.name);

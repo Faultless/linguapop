@@ -23,6 +23,9 @@ class MainichiSource extends FeedSource {
   String get id => 'mainichi';
   @override
   String get name => 'Mainichi Shimbun';
+
+  @override
+  String? get nativeName => '毎日新聞';
   @override
   String? get description => '毎日新聞 ニュース速報 — breaking news';
   @override

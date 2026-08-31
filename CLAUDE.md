@@ -30,7 +30,8 @@ lib/
     storage/storage.dart    — Hive box registration (prefs / novels_meta / novel_body /
                               jpdict / vocab); see "Storage layout" below
     themes/builtin_themes.dart — 11 BUILTIN_THEMES (paper/sepia/cream/rose/mint/
-                              night/midnight/forest/eink/highc/burnout), JLPT color map
+                              night/midnight/forest/eink/highc/burnout +
+                              sakura/momiji/matcha/ai/sumi), JLPT color map
   providers/                — Riverpod state notifiers
     prefs_provider.dart     — readerPrefsProvider, activeThemeProvider
     novels_provider.dart    — novelsProvider (meta list), novelBodyProvider (family)
@@ -102,7 +103,16 @@ Logical equivalents of the legacy JS localStorage/IndexedDB layout — same JSON
 - `/reader/:novelId/settings` — Reader settings (also `/settings`)
 - `/import` — File-picker import flow (stub)
 - `/vocab` — Saved vocab list
-- `/sources` — Online source adapters (stub)
+- `/sources` — Browse + import from online sources
+- `/sources/manage` — Which papers the newsstand carries
+
+### Settings
+
+`lib/ui/screens/settings_screen.dart` is a hub, not a scroll: `ReaderSettingsScreen` lists one row per area (Theme, Text & layout, Japanese, Papers, and — outside reading mode — Saved vocabulary and Browse sources), each with a live subtitle showing the current value. The leaves (`ThemeSettingsScreen`, `TextSettingsScreen`, `JapaneseSettingsScreen`, `SourceManagerScreen`) are pushed onto the ambient Navigator rather than routed — nothing deep-links to them, and it keeps `/settings` and `/reader/:id/settings` from each needing a parallel set of child routes. The reading-mode switch sits at the top of the hub in both modes.
+
+### App icon
+
+`tool/make_icon.py` owns the mark: the kanji 言 drawn as pure geometry — a short top stroke, three bars, and an open box — which reads at once as the character and as newsprint columns over a headline box. One geometry spec emits `assets/icon/linguapop.svg`, the Android adaptive-icon `VectorDrawable`s (foreground + an Android 13 monochrome layer), and the legacy `mipmap-*/ic_launcher.png` raster set for API < 26. There's no image library or SVG rasteriser assumed on the machine, so the PNGs are rendered with analytic per-pixel rectangle coverage through a ~40-line PNG encoder. Re-run `python3 tool/make_icon.py` after editing the spec; don't hand-edit the generated files.
 
 ### Theming
 
@@ -204,13 +214,30 @@ UI: `lib/ui/screens/sources_screen.dart` — single search bar, source-filter ch
 
 ### Front page (news)
 
-`lib/ui/screens/news_screen.dart` (`/news`) renders every imported feed article as a newspaper rather than a feed.
+`lib/ui/screens/news_screen.dart` (`/news`) renders every imported feed article as a Japanese daily rather than a feed. `lib/ui/widgets/newspaper.dart` holds the furniture, `lib/ui/widgets/front_page.dart` the layout.
 
-- **Paper rack** — a pinned horizontal strip of `PaperTab`s ("All papers" plus one per feed source, with unread counts). Tapping one switches papers without leaving the screen; `?paper=<id>` deep-links straight to one. The library opens a `SourceType.feed` novel here instead of the reader, and each feed section in the browse screen has a "read this paper" button.
-- **Masthead** — `NewspaperMasthead` (overline, display title, dateline, thin/thick rule pair) scrolls with the page; day boundaries are `NewsSectionRule`s.
-- **Two-column masonry** — `FrontPageBand` (`lib/ui/widgets/front_page.dart`) deals stories into the currently-shortest column using `estimateHeight`, giving a broadsheet look. Phones always get exactly 2 columns; wider windows get up to 5 (`FrontPageBand.columnsFor`). Bands are fixed slices of the list so the page stays inside a `ListView.builder` — building every story eagerly would tokenize every article for its difficulty badge on first paint. Column rules are painted by a `CustomPainter` behind the `Row`, because a stretched flex child can't take an unbounded height inside a `ListView`.
-- **Story block** — `FrontPageStory`: meta line (time · source, in the accent colour, unread dot), serif headline, bordered lead image, justified 3-line snippet, closing hairline. Long-press removes a story.
+- **Masthead** — `NewspaperMasthead`: romaji overline, the outlet's name in heavy kanji (`Source.nativeName`, e.g. 毎日新聞 / NHKニュース; the combined edition is 言葉新聞), an edition `SealBox` (朝刊 / 夕刊), and a Japanese dateline (`2026年8月31日（月）` · `全128件`). Day boundaries are `NewsSectionRule`s set as 【今日】/【昨日】/【8月30日】.
+- **Two-column masonry** — `FrontPageBand` deals stories into the currently-shortest column using `estimateHeight`. Phones always get exactly 2 columns; wider windows get up to 5 (`FrontPageBand.columnsFor`). Bands are fixed slices of the list so the page stays inside a `ListView.builder` — building every story eagerly would tokenize every article for its difficulty badge on first paint. Column rules are painted by a `CustomPainter` behind the `Row`, because a stretched flex child can't take an unbounded height inside a `ListView`.
+- **Story block** — `FrontPageStory`: a reverse-type `KickerBox` with the outlet, the time, the difficulty badge, an accent rule down the headline when unread, the cut, a justified 3-line snippet, closing hairline. Long-press removes a story.
+- **Cuts** — a scraped `imageUrl` renders through `NewsThumb`. When there isn't one, two stories in three get a `NewsprintPlaceholder` instead (`FrontPageStory.wantsPlaceholder`, a hash of the story id): a faint field of `NewsprintPainter` column copy with the headline's first kanji set large behind it. Not all of them — a page where every story has a picture box looks like a template, and one with none looks broken. `estimateHeight` accounts for placeholders so the columns stay balanced.
+- **Switching papers** — swipe left/right anywhere on the page (wraps around). In full mode a `PaperTab` rack is also pinned at the top with unread counts; `?paper=<id>` deep-links to one paper, and the library opens a `SourceType.feed` novel here instead of the reader.
+- **No hard refresh** — the screen holds the last rendered list (`_lastArticles`) and ignores the provider's loading state, so a sync only ever adds stories instead of flashing a spinner. Combined with `SourceImporter.importArticles` batching a whole source into one library write, a ten-article fetch redraws the page once.
 - The old linear layouts are still reachable through the view-mode button (`list` / `card`); `grid` means the front page here.
+
+### Reading mode
+
+`ReaderPrefs.simpleMode` (**on by default**) strips the app back to the three things it does: shelves, the front page, the reader.
+
+- Library: no filter bar, no sort, no view-mode switch, no import FAB; shelves are forced. App bar is News + Settings.
+- Front page: no rack (a `_PaperDots` tick strip instead), no view-mode or unread filter, one fetch button (今日の新聞). Papers change by swiping.
+- Settings: the hub hides "Saved vocabulary" and "Browse sources"; the Japanese screen hides the JLPT matrix.
+- `SourceManagerScreen` (`/sources/manage`) is the only source configuration surface — one switch per outlet, all on by default. `ReaderPrefs.enabledSourceIds` stores the choice, with the empty list meaning "carry everything" so a newly added adapter appears without the user opting in. Stories from a paper that's been switched off leave the front page but are not deleted.
+
+### Library shelves
+
+`LibraryViewMode.grid` renders as shelves (`lib/ui/widgets/shelf.dart`). `BookShelf` takes a column count and hands each slot its width, so covers, mastheads and captions all scale off one number; `ShelfBoard` draws the contact shadow, board face and front edge under each row. Covers are smaller than the old grid (~124 px target) so a shelf holds more. Part-full shelves keep their empty slots so covers stay on a common grid.
+
+Feed novels aren't books: with no cover URL, `BookCover` renders a `NewspaperFront` — the outlet's name set as a masthead over `NewsprintPainter` column copy, with a story-count kicker. The "Continue reading" row is gone; `lastReadAt` is still tracked and still drives the `recent` sort.
 
 `newsArticlesProvider` (in `lib/providers/news_provider.dart`) flattens the rolling feed novels and recomputes whenever the library changes. Read state lives in `news_read_ids` in the prefs box via `newsReadProvider`. Tapping a story marks it read and deep-links into the reader (`/reader/:id?ch=N`); the reader's back arrow returns to that paper's front page, and a "Next story" card at the end of each article hands off to the next one so reading a feed is a continuous scroll.
 
