@@ -5,8 +5,8 @@ AntiFeatures:
       Translate. All are non-free network services. The app has no accounts
       and no telemetry, and makes no request that the user did not ask for.
 Categories:
-  - Reading
   - News
+  - Reading
   - Science & Education
 License: GPL-3.0-or-later
 AuthorName: Serge Kamel
@@ -83,7 +83,7 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-x64
     ndk: 28.2.13676358
 
-AutoUpdateMode: Version v%v
+AutoUpdateMode: Version
 UpdateCheckMode: Tags ^v.*$
 VercodeOperation:
   - '%c + 1000'
