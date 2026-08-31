@@ -1,7 +1,12 @@
 name: linguapop
 description: "A Japanese language-learning novel reader."
 publish_to: 'none'
-version: 7.3.1+12
+# The build number is multiplied by 10 and offset by the ABI index to make
+# each split APK's versionCode (see android/app/build.gradle.kts). It jumped
+# to 210 when that scheme replaced Flutter's own: the last release under the
+# old scheme shipped arm64 as 2012, and a versionCode must never go backwards
+# for anyone who sideloaded it.
+version: 7.4.0+210
 
 environment:
   sdk: ^3.11.3
