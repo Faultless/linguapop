@@ -30,3 +30,28 @@ flutter test
 ```
 
 For architecture, conventions and the TS→Flutter port status, see `CLAUDE.md`.
+
+## Licence
+
+LinguaPop is free software under the **GNU General Public License v3.0 or
+later** — see [`LICENSE`](LICENSE).
+
+Bundled third-party components keep their own licences:
+
+- **MeCab** (vendored at `plugins/mecab_dart/`) — GPL / LGPL / BSD, at your
+  option; see `plugins/mecab_dart/COPYING.mecab`.
+- **IPADIC** (`assets/ipadic/`) — a permissive BSD-style licence from the Nara
+  Institute of Science and Technology; see `assets/ipadic/COPYING`.
+- **JLPT vocabulary lists** (`assets/jlpt/`) — the open Tanos / Jonathan Waller
+  lists.
+
+## F-Droid
+
+`fdroid/com.linguapop.linguapop.yml` is the build recipe submitted to
+[fdroiddata](https://gitlab.com/fdroid/fdroiddata). Keep it in step with the
+app when the Flutter version (`FLUTTER_VERSION`), the NDK version
+(`android/app/build.gradle.kts`) or the release tag changes.
+
+F-Droid signs with its own key, so its build deletes the debug `signingConfig`
+line from `android/app/build.gradle.kts` during prebuild. Store listing text
+lives in `fastlane/metadata/android/en-US/`.

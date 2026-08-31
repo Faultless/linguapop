@@ -1,0 +1,37 @@
+LinguaPop is a reader for people learning Japanese. It pulls the day's news
+from Japanese outlets and lays it out as a newspaper you can actually read at
+your level — every word colour-coded by JLPT difficulty, every word tappable
+for a dictionary entry.
+
+<b>The newsstand</b>
+
+Papers are fetched whole rather than article by article: pull today's edition,
+or the latest ten stories, from NHK News Web Easy, NHK News Web and the
+Mainichi Shimbun. The front page sets them like a Japanese daily — masthead,
+dateline, two columns of headlines with the images the source published.
+Swipe left or right to change paper.
+
+<b>Reading</b>
+
+Tap any word for its dictionary entry, readings, and the grammar of the form
+it's in: LinguaPop analyses conjugation chains, so 食べていました is one word
+with its own explanation rather than five loose morphemes. Save words to a
+vocabulary list and export it to AnkiDroid as a TSV.
+
+Words are coloured by JLPT level — N5 through N1 — using the bundled JLPT
+vocabulary lists. Words outside those lists are estimated from their kanji and
+marked with a dashed underline, so nothing on a real news page is left grey.
+
+<b>Your own books too</b>
+
+Import EPUB or plain-text files, optionally paired with a translation, and
+read them with the same tools. Original, translated, or side-by-side. Eleven
+reading themes plus five seasonal ones, adjustable type, scrolling or paged
+layout.
+
+<b>Offline and private</b>
+
+Japanese analysis runs entirely on the device with a bundled MeCab tokeniser
+and dictionary. There are no accounts, no tracking, and no data leaves the
+device except the requests that fetch the articles and dictionary entries you
+ask for.

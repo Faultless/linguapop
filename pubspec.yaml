@@ -1,7 +1,7 @@
 name: linguapop
 description: "A Japanese language-learning novel reader."
 publish_to: 'none'
-version: 7.1.0+8
+version: 7.1.1+9
 
 environment:
   sdk: ^3.11.3

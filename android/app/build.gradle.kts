@@ -8,7 +8,10 @@ plugins {
 android {
     namespace = "com.linguapop.linguapop"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Pinned rather than tracking flutter.ndkVersion: the F-Droid build
+    // recipe has to name an NDK the buildserver provides, and it must match
+    // whatever the vendored MeCab is compiled against here.
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -34,8 +37,10 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // No release keystore: local and GitHub-release builds are signed
+            // with the debug key so they install without one. The F-Droid
+            // recipe deletes the line below and signs with F-Droid's key —
+            // keep it on one line and textually distinctive.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
