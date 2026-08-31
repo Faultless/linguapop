@@ -124,6 +124,15 @@ class ReaderSettingsScreen extends ConsumerWidget {
             value: prefs.coloriseJapanese,
             onChanged: notifier.setColoriseJapanese,
           ),
+          SwitchListTile(
+            title: const Text('Estimate unlisted words'),
+            subtitle: const Text(
+                'Colour words outside the JLPT lists from their kanji '
+                '(dashed underline)'),
+            value: prefs.highlightUnlisted,
+            onChanged:
+                prefs.coloriseJapanese ? notifier.setHighlightUnlisted : null,
+          ),
 
           const SizedBox(height: 24),
           _SectionTitle('JLPT highlight matrix'),

@@ -58,7 +58,8 @@ final appRouter = GoRouter(
         GoRoute(
           path: 'news',
           name: 'news',
-          builder: (ctx, st) => const NewsScreen(),
+          builder: (ctx, st) =>
+              NewsScreen(initialPaper: st.uri.queryParameters['paper']),
         ),
         GoRoute(
           path: 'settings',

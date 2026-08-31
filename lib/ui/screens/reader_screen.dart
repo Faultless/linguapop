@@ -304,6 +304,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         const SnackBar(content: Text('Chapter translated.')));
   }
 
+  /// Where the back arrow goes. News articles came from a paper's front
+  /// page, so that's where "back" belongs — not the library.
+  String _backRoute(NovelMeta meta) {
+    if (meta.sourceType == SourceType.feed) {
+      final paper = meta.sourceId ??
+          (meta.id.startsWith('feed:') ? meta.id.substring(5) : meta.id);
+      return '/news?paper=$paper';
+    }
+    return '/';
+  }
+
   @override
   Widget build(BuildContext context) {
     final prefs = ref.watch(readerPrefsProvider);
@@ -343,7 +354,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                   child: _chromeVisible
                       ? _TopBar(
                           title: chapter.title,
-                          onBack: () => context.go('/'),
+                          onBack: () => context.go(_backRoute(meta)),
                           onSettings: () => context
                               .go('/reader/${widget.novelId}/settings'),
                           onChapters: () => _showChapterPicker(body.chapters),
@@ -383,6 +394,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                             novelId: widget.novelId,
                             novelTitle: meta.title,
                             chapterIndex: _chapterIdx,
+                            nextTitle: _chapterIdx < body.chapters.length - 1
+                                ? body.chapters[_chapterIdx + 1].title
+                                : null,
+                            nextLabel: meta.sourceType == SourceType.feed
+                                ? 'Next story'
+                                : 'Next chapter',
+                            onNext: _chapterIdx < body.chapters.length - 1
+                                ? () => _gotoChapter(_chapterIdx + 1)
+                                : null,
                             onOffsetChanged: (px) =>
                                 _onPositionChanged(px.round()),
                             onTap: _onBackgroundTap,
@@ -494,6 +514,13 @@ class _ScrollChapterView extends StatefulWidget {
   /// Double-tap on the chapter background. Used to toggle the reader chrome.
   final VoidCallback onDoubleTap;
 
+  /// Headline of what comes next, shown as a tappable card at the end of the
+  /// article so reading a feed is a continuous scroll rather than a trip back
+  /// to the bottom-bar arrows.
+  final String? nextTitle;
+  final String nextLabel;
+  final VoidCallback? onNext;
+
   const _ScrollChapterView({
     super.key,
     required this.chapter,
@@ -505,6 +532,9 @@ class _ScrollChapterView extends StatefulWidget {
     required this.onOffsetChanged,
     required this.onTap,
     required this.onDoubleTap,
+    this.nextTitle,
+    this.nextLabel = 'Next chapter',
+    this.onNext,
   });
 
   @override
@@ -582,7 +612,19 @@ class _ScrollChapterViewState extends State<_ScrollChapterView> {
                 );
               }
               if (i == _blocks.length + 1) {
-                return SizedBox(height: paragraphGap * 4);
+                final next = widget.nextTitle;
+                if (next == null || widget.onNext == null) {
+                  return SizedBox(height: paragraphGap * 4);
+                }
+                return Padding(
+                  padding: EdgeInsets.only(
+                      top: paragraphGap, bottom: paragraphGap * 3),
+                  child: _NextStoryCard(
+                    label: widget.nextLabel,
+                    title: next,
+                    onTap: widget.onNext!,
+                  ),
+                );
               }
               return Padding(
                 padding: EdgeInsets.only(bottom: paragraphGap),
@@ -603,6 +645,68 @@ class _ScrollChapterViewState extends State<_ScrollChapterView> {
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// End-of-article hand-off: "Next story ›" plus the headline, so a reader
+/// finishing one piece can keep going with a single tap.
+class _NextStoryCard extends StatelessWidget {
+  final String label;
+  final String title;
+  final VoidCallback onTap;
+  const _NextStoryCard({
+    required this.label,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: cs.onSurface.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.4,
+                      color: cs.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    title,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'serif',
+                      fontSize: 16,
+                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right, color: cs.onSurface.withValues(alpha: 0.6)),
+          ],
         ),
       ),
     );

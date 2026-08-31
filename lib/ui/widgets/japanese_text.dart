@@ -111,7 +111,8 @@ class _JapaneseTextState extends ConsumerState<JapaneseText> {
 
     final spans = <InlineSpan>[];
     for (final tk in tokens) {
-      final color = _colorFor(tk, prefs, jlpt);
+      final hit = _hitFor(tk, prefs, jlpt);
+      final color = hit == null ? null : kJlptColors[hit.level];
       if (color == null) {
         spans.add(TextSpan(text: tk.surface));
       } else {
@@ -126,8 +127,13 @@ class _JapaneseTextState extends ConsumerState<JapaneseText> {
           style: TextStyle(
             color: color,
             decoration: TextDecoration.underline,
-            decorationStyle: TextDecorationStyle.dotted,
-            decorationColor: color,
+            // Estimated levels get a dashed rule so they never read as a
+            // confirmed JLPT listing.
+            decorationStyle: hit!.approximate
+                ? TextDecorationStyle.dashed
+                : TextDecorationStyle.dotted,
+            decorationColor:
+                hit.approximate ? color.withValues(alpha: 0.55) : color,
             decorationThickness: 1.5,
           ),
         ));
@@ -136,15 +142,40 @@ class _JapaneseTextState extends ConsumerState<JapaneseText> {
     return spans;
   }
 
-  Color? _colorFor(JpToken tk, ReaderPrefs prefs, JlptLookup jlpt) {
+  JlptHit? _hitFor(JpToken tk, ReaderPrefs prefs, JlptLookup jlpt) {
     if (!prefs.coloriseJapanese) return null;
     if (tk.isFiller) return null;
-    final hit = jlpt.lookup(
+    var hit = jlpt.lookup(
         base: tk.base, surface: tk.surface, reading: tk.reading);
+    if (hit == null && prefs.highlightUnlisted && _estimable(tk)) {
+      hit = jlpt.estimate(
+          base: tk.base, surface: tk.surface, reading: tk.reading);
+    }
     if (hit == null) return null;
     if (!prefs.jlptColorRules.isHighlighted(tk.posCategory, hit.level)) {
       return null;
     }
-    return kJlptColors[hit.level];
+    return hit;
+  }
+
+  /// Which unlisted tokens are worth estimating a level for. Numbers,
+  /// counters, bound nouns and single-character suffixes are structural noise
+  /// — colouring them buries the words the reader actually needs.
+  static bool _estimable(JpToken tk) {
+    const skip = ['名詞,数', '名詞,接尾', '名詞,非自立', '名詞,代名詞'];
+    for (final p in skip) {
+      if (tk.pos == p || tk.pos.startsWith('$p,')) return false;
+    }
+    switch (tk.posCategory) {
+      case JpPosCategory.noun:
+      case JpPosCategory.verb:
+      case JpPosCategory.adjective:
+      case JpPosCategory.adverb:
+        return true;
+      case JpPosCategory.particle:
+      case JpPosCategory.auxiliary:
+      case JpPosCategory.other:
+        return false;
+    }
   }
 }

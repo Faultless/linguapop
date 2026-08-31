@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:linguapop/data/models/jp_token.dart';
+import 'package:linguapop/data/models/reader_prefs.dart' show JpPosCategory;
 import 'package:linguapop/services/tokenizer/conjugation_merger.dart';
 
 /// Helper replicating what MecabTokenizer emits for one IPADIC morpheme.
@@ -142,6 +143,116 @@ void main() {
       ]);
       expect(merged.length, 3);
       expect(merged[2].conjugation, isNull);
+    });
+
+    test('発表しました → suru-verb merged with its noun', () {
+      final merged = ConjugationMerger.merge([
+        tk('発表', '名詞,サ変接続'),
+        tk('し', '動詞,自立', base: 'する', type: 'サ変・スル', form: '連用形'),
+        tk('まし', '助動詞', base: 'ます', type: '特殊・マス', form: '連用形'),
+        tk('た', '助動詞', base: 'た', type: '特殊・タ', form: '基本形'),
+      ]);
+      expect(merged.length, 1);
+      expect(merged.first.surface, '発表しました');
+      expect(merged.first.base, '発表する');
+      expect(merged.first.posCategory, JpPosCategory.verb);
+      expect(merged.first.conjugation!.forms, ['polite', 'past']);
+    });
+
+    test('静かでした → na-adjective merged with its copula', () {
+      final merged = ConjugationMerger.merge([
+        tk('静か', '名詞,形容動詞語幹'),
+        tk('でし', '助動詞', base: 'です', type: '特殊・デス', form: '連用形'),
+        tk('た', '助動詞', base: 'た', type: '特殊・タ', form: '基本形'),
+      ]);
+      expect(merged.length, 1);
+      expect(merged.first.surface, '静かでした');
+      expect(merged.first.base, '静か');
+      expect(merged.first.posCategory, JpPosCategory.adjective);
+      expect(merged.first.conjugation!.forms, ['polite', 'past']);
+    });
+
+    test('静かだった → copula is a part, not a listed form', () {
+      final merged = ConjugationMerger.merge([
+        tk('静か', '名詞,形容動詞語幹'),
+        tk('だっ', '助動詞', base: 'だ', type: '特殊・ダ', form: '連用タ接続'),
+        tk('た', '助動詞', base: 'た', type: '特殊・タ', form: '基本形'),
+      ]);
+      expect(merged.length, 1);
+      expect(merged.first.conjugation!.forms, ['past']);
+    });
+
+    test('行かなければならない → obligation swallows the naru clause', () {
+      final merged = ConjugationMerger.merge([
+        tk('行か', '動詞,自立', base: '行く', type: '五段・カ行促音便', form: '未然形'),
+        tk('なけれ', '助動詞', base: 'ない', type: '特殊・ナイ', form: '仮定形'),
+        tk('ば', '助詞,接続助詞'),
+        tk('なら', '動詞,自立', base: 'なる', type: '五段・ラ行', form: '未然形'),
+        tk('ない', '助動詞', base: 'ない', type: '特殊・ナイ', form: '基本形'),
+      ]);
+      expect(merged.length, 1);
+      expect(merged.first.surface, '行かなければならない');
+      expect(merged.first.base, '行く');
+      expect(merged.first.conjugation!.forms, [
+        'negative',
+        'conditional (ba)',
+        'obligation (なければならない)',
+        'negative',
+      ]);
+    });
+
+    test('食べてはいけません → prohibition', () {
+      final merged = ConjugationMerger.merge([
+        tk('食べ', '動詞,自立', base: '食べる', type: '一段', form: '連用形'),
+        tk('て', '助詞,接続助詞'),
+        tk('は', '助詞,係助詞'),
+        tk('いけ', '動詞,自立', base: 'いける', type: '一段', form: '未然形'),
+        tk('ませ', '助動詞', base: 'ます', type: '特殊・マス', form: '未然形'),
+        tk('ん', '助動詞', base: 'ん', type: '不変化型', form: '基本形'),
+      ]);
+      expect(merged.length, 1);
+      expect(merged.first.surface, '食べてはいけません');
+      expect(merged.first.conjugation!.forms,
+          ['prohibition (てはいけない)', 'polite', 'negative']);
+    });
+
+    test('休んでもいい → permission', () {
+      final merged = ConjugationMerger.merge([
+        tk('休ん', '動詞,自立', base: '休む', type: '五段・マ行', form: '連用タ接続'),
+        tk('で', '助詞,接続助詞'),
+        tk('も', '助詞,係助詞'),
+        tk('いい', '形容詞,自立', base: 'いい', type: '形容詞・イイ', form: '基本形'),
+      ]);
+      expect(merged.length, 1);
+      expect(merged.first.surface, '休んでもいい');
+      expect(merged.first.conjugation!.forms, ['permission (てもいい)']);
+    });
+
+    test('bare は after a verb does not get swallowed', () {
+      final merged = ConjugationMerger.merge([
+        tk('走る', '動詞,自立', base: '走る', type: '五段・ラ行', form: '基本形'),
+        tk('は', '助詞,係助詞'),
+        tk('猫', '名詞,一般'),
+      ]);
+      expect(merged.length, 3);
+    });
+
+    test('食べながら → simultaneous', () {
+      final merged = ConjugationMerger.merge([
+        tk('食べ', '動詞,自立', base: '食べる', type: '一段', form: '連用形'),
+        tk('ながら', '助詞,接続助詞'),
+      ]);
+      expect(merged.length, 1);
+      expect(merged.first.conjugation!.forms, ['simultaneous (nagara)']);
+    });
+
+    test('読んだ → voiced past marker is still past, not a copula', () {
+      final merged = ConjugationMerger.merge([
+        tk('読ん', '動詞,自立', base: '読む', type: '五段・マ行', form: '連用タ接続'),
+        tk('だ', '助動詞', base: 'だ', type: '特殊・タ', form: '基本形'),
+      ]);
+      expect(merged.length, 1);
+      expect(merged.first.conjugation!.forms, ['past']);
     });
 
     test('surfaces always concatenate back to the original text', () {

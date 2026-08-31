@@ -63,7 +63,10 @@ class JlptEstimator {
       if (tk.isFiller) continue;
       if (!_contentCategories.contains(tk.posCategory)) continue;
       total++;
-      final h = _lookup.lookup(
+      // Estimated levels count too: an article full of unlisted compounds is
+      // hard, and scoring those as "unknown" collapsed every news estimate
+      // toward the handful of listed words in it.
+      final h = _lookup.estimate(
           base: tk.base, surface: tk.surface, reading: tk.reading);
       switch (h?.level) {
         case 5: n5++;

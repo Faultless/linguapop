@@ -94,6 +94,11 @@ class ReaderPrefs {
   final bool autoCacheTranslations;
   final double ttsRate;
   final bool coloriseJapanese;
+
+  /// Colour content words that aren't in the bundled JLPT lists, using a
+  /// level estimated from their kanji. Rendered with a dashed underline so
+  /// an estimate never passes for a listed level.
+  final bool highlightUnlisted;
   final JlptColorRules jlptColorRules;
   final LibrarySort librarySort;
   final LibraryViewMode libraryViewMode;
@@ -125,6 +130,7 @@ class ReaderPrefs {
     required this.autoCacheTranslations,
     required this.ttsRate,
     required this.coloriseJapanese,
+    required this.highlightUnlisted,
     required this.jlptColorRules,
     required this.librarySort,
     required this.libraryViewMode,
@@ -150,10 +156,11 @@ class ReaderPrefs {
         autoCacheTranslations: true,
         ttsRate: 1,
         coloriseJapanese: true,
+        highlightUnlisted: true,
         jlptColorRules: JlptColorRules.defaults(),
         librarySort: LibrarySort.recent,
         libraryViewMode: LibraryViewMode.grid,
-        newsViewMode: LibraryViewMode.list,
+        newsViewMode: LibraryViewMode.grid,
         pageCharLimit: 1200,
         tapZonesEnabled: true,
         swipeToTurnPage: true,
@@ -175,6 +182,7 @@ class ReaderPrefs {
     bool? autoCacheTranslations,
     double? ttsRate,
     bool? coloriseJapanese,
+    bool? highlightUnlisted,
     JlptColorRules? jlptColorRules,
     LibrarySort? librarySort,
     LibraryViewMode? libraryViewMode,
@@ -200,6 +208,7 @@ class ReaderPrefs {
             autoCacheTranslations ?? this.autoCacheTranslations,
         ttsRate: ttsRate ?? this.ttsRate,
         coloriseJapanese: coloriseJapanese ?? this.coloriseJapanese,
+        highlightUnlisted: highlightUnlisted ?? this.highlightUnlisted,
         jlptColorRules: jlptColorRules ?? this.jlptColorRules,
         librarySort: librarySort ?? this.librarySort,
         libraryViewMode: libraryViewMode ?? this.libraryViewMode,
@@ -225,6 +234,7 @@ class ReaderPrefs {
         'autoCacheTranslations': autoCacheTranslations,
         'ttsRate': ttsRate,
         'coloriseJapanese': coloriseJapanese,
+        'highlightUnlisted': highlightUnlisted,
         'jlptColorRules': jlptColorRules.toJson(),
         'librarySort': librarySort.name,
         'libraryViewMode': libraryViewMode.name,
@@ -266,6 +276,8 @@ class ReaderPrefs {
           j['autoCacheTranslations'] as bool? ?? d.autoCacheTranslations,
       ttsRate: (j['ttsRate'] as num?)?.toDouble() ?? d.ttsRate,
       coloriseJapanese: j['coloriseJapanese'] as bool? ?? d.coloriseJapanese,
+      highlightUnlisted:
+          j['highlightUnlisted'] as bool? ?? d.highlightUnlisted,
       jlptColorRules: j['jlptColorRules'] is Map
           ? JlptColorRules.fromJson(
               Map<String, dynamic>.from(j['jlptColorRules'] as Map))

@@ -42,6 +42,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       _favoritesOnly ||
       _tagFilter.isNotEmpty;
 
+  /// A rolling news feed isn't a book — opening it drops you on that paper's
+  /// front page rather than at whichever article you last read.
+  void _open(BuildContext context, NovelMeta m) {
+    if (m.sourceType == SourceType.feed) {
+      final paper = m.sourceId ??
+          (m.id.startsWith('feed:') ? m.id.substring(5) : m.id);
+      context.go('/news?paper=$paper');
+      return;
+    }
+    context.go('/reader/${m.id}');
+  }
+
   void _clearFilters() => setState(() {
         _status = _StatusFilter.all;
         _contentType = null;
@@ -141,14 +153,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             SliverToBoxAdapter(
                               child: _ContinueReadingRow(
                                 novels: continueReading,
-                                onTap: (m) => context.go('/reader/${m.id}'),
+                                onTap: (m) => _open(context, m),
                                 onLongPress: (m) => context.go('/book/${m.id}'),
                               ),
                             ),
                           _LibrarySliver(
                             novels: sorted,
                             viewMode: prefs.libraryViewMode,
-                            onTap: (m) => context.go('/reader/${m.id}'),
+                            onTap: (m) => _open(context, m),
                             onOpenDetail: (m) => context.go('/book/${m.id}'),
                           ),
                         ],

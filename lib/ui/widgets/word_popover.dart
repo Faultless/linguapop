@@ -7,6 +7,7 @@ import '../../data/models/jp_token.dart';
 import '../../data/models/vocab_entry.dart';
 import '../../data/themes/builtin_themes.dart';
 import '../../providers/dict_provider.dart';
+import '../../providers/jlpt_provider.dart';
 import '../../providers/vocab_provider.dart';
 import 'jlpt_badge.dart';
 
@@ -164,21 +165,36 @@ class _WordPopoverState extends ConsumerState<_WordPopover> {
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   final JpToken token;
   const _Header({required this.token});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cs = Theme.of(context).colorScheme;
+    final hit = ref.watch(jlptLookupProvider).estimate(
+          base: token.base,
+          surface: token.surface,
+          reading: token.reading,
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(token.surface,
-            style: const TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w700,
-                height: 1.1)),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Text(token.surface,
+                  style: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      height: 1.1)),
+            ),
+            if (hit != null)
+              JlptBadge(
+                  level: hit.level, size: 12, approximate: hit.approximate),
+          ],
+        ),
         if (token.reading != null && token.reading != token.surface)
           Padding(
             padding: const EdgeInsets.only(top: 2),

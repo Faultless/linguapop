@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../providers/sources_provider.dart';
+import '../../services/sources/feed_sync.dart';
 import '../../services/sources/source_import.dart';
 import '../../services/sources/source_types.dart';
 import '../../services/sources/syosetu.dart';
@@ -453,6 +454,7 @@ class _FeedSection extends ConsumerStatefulWidget {
 
 class _FeedSectionState extends ConsumerState<_FeedSection> {
   Future<List<ArticleStub>>? _future;
+  bool _bulkBusy = false;
 
   @override
   void initState() {
@@ -460,11 +462,56 @@ class _FeedSectionState extends ConsumerState<_FeedSection> {
     _future = widget.source.list();
   }
 
+  /// Bulk import straight from the newsstand — the fast path most readers
+  /// want instead of tapping "+" on each headline.
+  Future<void> _bulkFetch(FeedFetchMode mode) async {
+    if (_bulkBusy) return;
+    setState(() => _bulkBusy = true);
+    MiniToast.show(context, '${mode.label}…');
+    final result = await ref
+        .read(feedSyncProvider)
+        .run(sources: [widget.source], mode: mode);
+    if (!mounted) return;
+    setState(() => _bulkBusy = false);
+    MiniToast.show(context, result.summary);
+  }
+
   @override
   Widget build(BuildContext context) {
     return _SectionShell(
       icon: Icons.article_outlined,
       label: widget.source.name,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_bulkBusy)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: SizedBox(
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+          PopupMenuButton<FeedFetchMode>(
+            tooltip: 'Add stories in bulk',
+            padding: EdgeInsets.zero,
+            icon: const Icon(Icons.playlist_add, size: 20),
+            enabled: !_bulkBusy,
+            onSelected: _bulkFetch,
+            itemBuilder: (ctx) => [
+              for (final m in FeedFetchMode.values)
+                PopupMenuItem(value: m, child: Text(m.label)),
+            ],
+          ),
+          IconButton(
+            tooltip: 'Read this paper',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            icon: const Icon(Icons.chrome_reader_mode_outlined, size: 19),
+            onPressed: () => context.go('/news?paper=${widget.source.id}'),
+          ),
+        ],
+      ),
       child: FutureBuilder<List<ArticleStub>>(
         future: _future,
         builder: (ctx, snap) {
@@ -614,8 +661,16 @@ class _SectionShell extends StatelessWidget {
   final IconData icon;
   final String label;
   final Widget child;
-  const _SectionShell(
-      {required this.icon, required this.label, required this.child});
+
+  /// Section-level actions (bulk fetch, "read this paper"), right-aligned in
+  /// the header rule.
+  final Widget? trailing;
+  const _SectionShell({
+    required this.icon,
+    required this.label,
+    required this.child,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -631,13 +686,21 @@ class _SectionShell extends StatelessWidget {
               children: [
                 Icon(icon, size: 16, color: cs.primary),
                 const SizedBox(width: 8),
-                Text(label.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                      color: cs.primary,
-                    )),
+                Flexible(
+                  child: Text(label.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                        color: cs.primary,
+                      )),
+                ),
+                if (trailing != null) ...[
+                  const Spacer(),
+                  trailing!,
+                ],
               ],
             ),
           ),

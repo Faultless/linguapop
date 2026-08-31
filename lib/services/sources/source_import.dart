@@ -46,8 +46,12 @@ class SourceImporter {
   }) async {
     final chapter = await source.fetch(stub);
     // Fall back to the stub's image when the adapter didn't set one from the
-    // article page itself.
+    // article page itself, then make sure whatever we ended up with is an
+    // absolute URL — feed payloads carry relative and protocol-relative
+    // paths, which Image.network can't load.
     chapter.imageUrl ??= stub.imageUrl;
+    chapter.imageUrl =
+        absoluteImageUrl(chapter.imageUrl, chapter.sourceUrl ?? stub.sourceUrl);
     final feedNovelId = 'feed:${source.id}';
 
     // Try to find an existing rolling novel for this feed.
@@ -200,6 +204,20 @@ class SourceImporter {
     await _novels.add(meta, NovelBody(id: id, chapters: chapters));
     return id;
   }
+}
+
+/// Resolve a feed-supplied image reference against the article it came from.
+/// Returns null for anything that can't be made into an absolute http(s) URL.
+String? absoluteImageUrl(String? raw, String? articleUrl) {
+  final v = raw?.trim();
+  if (v == null || v.isEmpty) return null;
+  if (v.startsWith('http://') || v.startsWith('https://')) return v;
+  if (v.startsWith('data:')) return v;
+  if (v.startsWith('//')) return 'https:$v';
+  if (articleUrl == null) return null;
+  final base = Uri.tryParse(articleUrl);
+  if (base == null || !base.hasScheme) return null;
+  return base.resolve(v).toString();
 }
 
 class _CancelledError implements Exception {

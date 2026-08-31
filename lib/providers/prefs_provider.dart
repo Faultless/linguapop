@@ -56,6 +56,9 @@ class ReaderPrefsNotifier extends StateNotifier<ReaderPrefs> {
   Future<void> setColoriseJapanese(bool v) =>
       update((p) => p.copyWith(coloriseJapanese: v));
 
+  Future<void> setHighlightUnlisted(bool v) =>
+      update((p) => p.copyWith(highlightUnlisted: v));
+
   Future<void> setShowRubies(bool v) => update((p) => p.copyWith(showRubies: v));
 
   Future<void> setTtsRate(double r) => update((p) => p.copyWith(ttsRate: r));

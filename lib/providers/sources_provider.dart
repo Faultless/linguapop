@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/models/novel.dart' show SourceType;
+import '../services/sources/feed_sync.dart';
 import '../services/sources/session_client.dart';
 import '../services/sources/source_import.dart';
 import '../services/sources/source_registry.dart';
@@ -20,6 +21,13 @@ final sourceRegistryProvider = Provider<SourceRegistry>(
 
 final sourceImporterProvider = Provider<SourceImporter>(
     (ref) => SourceImporter(ref.read(novelsProvider.notifier)));
+
+/// Bulk feed fetcher ("today's paper", "latest 10") shared by the news hub
+/// and the browse screen.
+final feedSyncProvider = Provider<FeedSync>((ref) => FeedSync(
+      ref.read(sourceImporterProvider),
+      (sourceId) => ref.read(importedArticleUrlsProvider(sourceId).future),
+    ));
 
 /// Source URLs of every article already imported into the rolling feed novel
 /// of the given feed source. Recomputes whenever the library changes, so

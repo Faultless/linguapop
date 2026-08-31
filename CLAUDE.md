@@ -38,10 +38,12 @@ lib/
   ui/
     router.dart             — go_router config; routes nested under /
     screens/                — library, reader, settings, import, vocab,
-                              sources, news (news hub)
+                              sources, news (newspaper front page)
     widgets/                — NovelCard/NovelListRow/NovelWideCard, JapaneseText,
                               JlptBadge, DifficultyBadge, NewsThumb (lazy image),
-                              ViewModeButton, MiniToast
+                              ViewModeButton, MiniToast,
+                              newspaper.dart (masthead / rules / PaperTab),
+                              front_page.dart (FrontPageBand masonry)
 
 legacy_ts/                  — old React/TS monorepo, reference only
 assets/jlpt/                — JLPT vocab JSON (to be generated from legacy data)
@@ -96,7 +98,7 @@ Logical equivalents of the legacy JS localStorage/IndexedDB layout — same JSON
 - `/` — Library
 - `/book/:novelId` — Book detail (cover/rating-less metadata edit, collections, tags, cover picker)
 - `/reader/:novelId` — Reader (`?ch=N` query param deep-links to a chapter, used by the news hub)
-- `/news` — News hub (all imported feed articles: day grouping, read state, difficulty, sync)
+- `/news` — Front page (newspaper layout over all imported feed articles). `?paper=<sourceId>` opens one paper; `all` is every paper.
 - `/reader/:novelId/settings` — Reader settings (also `/settings`)
 - `/import` — File-picker import flow (stub)
 - `/vocab` — Saved vocab list
@@ -135,12 +137,20 @@ Kindle-style classification on top of `NovelMeta`:
 - **Tokenizer**: `lib/services/tokenizer/` — abstract `JpTokenizer` with a conditional-import factory:
   - `mecab_tokenizer_native.dart` — wraps the vendored `plugins/mecab_dart` FFI plugin, bundles IPADIC from `assets/ipadic/` (~51 MB, copied to documents dir on first run), maps MeCab features to our `JpToken` model (base form, hiragana reading, POS, 活用型/活用形, filler flag).
   - `conjugation_merger.dart` — post-pass over the raw morphemes: merges verb/adjective stems with their auxiliary chain (て-connectors, 助動詞, 非自立 helper verbs, 接尾 voice suffixes) into one token per conjugated phrase, with a `ConjugationInfo` (form labels like progressive/polite/past/passive/causative + per-morpheme breakdown). Merged surfaces always concatenate back to the original text. Unit-tested against known IPADIC analyses in `test/conjugation_merger_test.dart`.
+
+    Three kinds of phrase head (`_HeadKind`): plain 動詞,自立 / 形容詞,自立; **suru-verbs** (名詞,サ変接続 + する → 発表しました as one token with base 発表する and verb POS); and **na-adjectives** (名詞,形容動詞語幹 + だ/です → 静かでした with base 静か and adjective POS). Beyond the auxiliary chain it also absorbs the multi-morpheme grammar patterns MeCab splits across clause boundaries: 〜なければならない (obligation), 〜てはいけない (prohibition), 〜てもいい (permission), plus the ながら / たり / つつ / し / と connectors. The copula is distinguished from the past marker by 活用型 (特殊・ダ vs 特殊・タ), so 読んだ is "past" while 静かだった's だ is just a part.
   - `mecab_tokenizer_stub.dart` — web fallback (returns the whole text as one filler token).
 - **JLPT lookup**: `lib/services/dictionary/jlpt_lookup.dart`. Loads two bundled JSON assets at app start:
   - `assets/jlpt/vocab.json` — 8,034 entries from the open Tanos / Jonathan Waller list.
   - `assets/jlpt/starter.json` — 307 curated common keys (particles, kana words) keyed by comma-separated surfaces.
   Both are merged into a single `String → JlptHit` map. Duplicate keys keep the easier level. The `register()` method lets cached Jisho lookups merge in later.
-- **JapaneseText widget**: `lib/ui/widgets/japanese_text.dart`. While the tokenizer is loading the text renders plain; once `tokenizerStatusProvider` flips to `ready` it retokenizes and renders each content token as a colored `TextSpan` with a dotted underline. Respects `prefs.coloriseJapanese` and the `prefs.jlptColorRules` POS×level matrix. `onTapToken` is wired but unused until the Jisho popover lands.
+
+  8k words covers only a fraction of real news prose, so there are two fallback layers on top of the exact map:
+  1. **De-inflection** (`lookup`) — 五段 potential (読める → 読む), passive/causative bases (見られる → 見る), suru-verb bases from the merger (発表する → 発表), and productive affixes (経済的 → 経済, ご案内 → 案内). Still an exact hit when it lands.
+  2. **Estimation** (`estimate`) — a word with no listed form is scored from the JLPT levels of its individual kanji. The kanji→level table is derived from the bundled vocabulary itself at load time (each kanji keeps the *easiest* level it appears at); a word's estimate is its *hardest* kanji, since that's what a reader stumbles on. Unlisted katakana of 3+ characters is guessed at N2. Results carry `JlptHit.approximate`, rendered with a dashed underline and a `~N3` badge so an estimate never passes for a listing.
+
+  `ReaderPrefs.highlightUnlisted` (default on, toggled in reader settings) gates layer 2. `JapaneseText._estimable` keeps numbers, counters, bound nouns and pronouns out of it — colouring those buries the words that matter. Tested against the real assets in `test/jlpt_lookup_test.dart`.
+- **JapaneseText widget**: `lib/ui/widgets/japanese_text.dart`. While the tokenizer is loading the text renders plain; once `tokenizerStatusProvider` flips to `ready` it retokenizes and renders each content token as a colored `TextSpan` — dotted underline for a listed level, dashed for an estimated one. Respects `prefs.coloriseJapanese`, `prefs.highlightUnlisted`, and the `prefs.jlptColorRules` POS×level matrix.
 - **JLPT colors**: N5=teal, N4=green, N3=amber, N2=orange, N1=red (see `kJlptColors`).
 - **Warm-up**: `LinguapopApp` reads `tokenizerStatusProvider.future` + `jlptLoadedProvider.future` in a post-frame callback so the first chapter open isn't blocked on a 51 MB asset copy.
 
@@ -192,13 +202,31 @@ Wired into the reader's bottom-bar Translate button: opens a non-dismissable pro
 
 UI: `lib/ui/screens/sources_screen.dart` — single search bar, source-filter chips generated from the registry, order + completion popup, articles + books mixed in one scroll. One-tap **+** button on every result imports (instant for articles, progress sheet for books); already-imported items show a checkmark that removes them on tap (with confirm). Article tiles show an approximate JLPT difficulty badge estimated from title + summary. Tap-through on books opens a detail bottom sheet with summary, tags, and a big "Add to library" button.
 
-### News hub
+### Front page (news)
 
-`lib/ui/screens/news_screen.dart` (`/news`): every imported feed article across all news sources in one list — newest first, grouped by day, unread dots (`news_read_ids` in the prefs box via `newsReadProvider`), per-article JLPT difficulty badge + distribution bar (estimated from the full stored text), swipe-to-delete, source + unread filters, and a sync action that fetches the newest unimported articles from every feed source (capped at 10/source/pass). Tapping an article marks it read and deep-links into the reader at that chapter (`/reader/:id?ch=N`). `newsArticlesProvider` (in `lib/providers/news_provider.dart`) flattens the rolling feed novels and recomputes whenever the library changes.
+`lib/ui/screens/news_screen.dart` (`/news`) renders every imported feed article as a newspaper rather than a feed.
+
+- **Paper rack** — a pinned horizontal strip of `PaperTab`s ("All papers" plus one per feed source, with unread counts). Tapping one switches papers without leaving the screen; `?paper=<id>` deep-links straight to one. The library opens a `SourceType.feed` novel here instead of the reader, and each feed section in the browse screen has a "read this paper" button.
+- **Masthead** — `NewspaperMasthead` (overline, display title, dateline, thin/thick rule pair) scrolls with the page; day boundaries are `NewsSectionRule`s.
+- **Two-column masonry** — `FrontPageBand` (`lib/ui/widgets/front_page.dart`) deals stories into the currently-shortest column using `estimateHeight`, giving a broadsheet look. Phones always get exactly 2 columns; wider windows get up to 5 (`FrontPageBand.columnsFor`). Bands are fixed slices of the list so the page stays inside a `ListView.builder` — building every story eagerly would tokenize every article for its difficulty badge on first paint. Column rules are painted by a `CustomPainter` behind the `Row`, because a stretched flex child can't take an unbounded height inside a `ListView`.
+- **Story block** — `FrontPageStory`: meta line (time · source, in the accent colour, unread dot), serif headline, bordered lead image, justified 3-line snippet, closing hairline. Long-press removes a story.
+- The old linear layouts are still reachable through the view-mode button (`list` / `card`); `grid` means the front page here.
+
+`newsArticlesProvider` (in `lib/providers/news_provider.dart`) flattens the rolling feed novels and recomputes whenever the library changes. Read state lives in `news_read_ids` in the prefs box via `newsReadProvider`. Tapping a story marks it read and deep-links into the reader (`/reader/:id?ch=N`); the reader's back arrow returns to that paper's front page, and a "Next story" card at the end of each article hands off to the next one so reading a feed is a continuous scroll.
+
+### Bulk fetching
+
+`lib/services/sources/feed_sync.dart` — `FeedSync.run({sources, mode})` is the one path for pulling articles in bulk, exposed as `feedSyncProvider`.
+
+`FeedFetchMode`:
+- `today` — everything published today; if today's edition isn't out yet, the whole of the newest day the feed carries (NHK Easy publishes on a lag, so a literal "today" filter often returned an empty paper).
+- `latest10` / `latest30` — the N newest unimported stories.
+
+Every mode skips already-imported `sourceUrl`s, sorts newest-first, and is capped at `FeedSync.maxPerSource` (40) per pass. Surfaced as "Today's paper" / "Latest 10" buttons under the masthead, a mode picker in the app bar, pull-to-refresh, and a per-source bulk menu in the browse screen.
 
 ### Difficulty estimation
 
-`lib/services/dictionary/jlpt_estimator.dart` — tokenizes a text (first 4k chars) and buckets content words (noun/verb/adjective/adverb) against the JLPT table into `JlptStats`; `difficultyBucket` gives the closest level. Memoized per text. `DifficultyBadge` (`lib/ui/widgets/difficulty_badge.dart`) renders the estimate ("~N3" when approximate) and optionally a stacked N5…N1 share bar; renders nothing when the tokenizer is unavailable (web stub).
+`lib/services/dictionary/jlpt_estimator.dart` — tokenizes a text (first 4k chars) and buckets content words (noun/verb/adjective/adverb) against the JLPT table into `JlptStats` (via `estimate`, so unlisted compounds score rather than collapsing into "unknown"); `difficultyBucket` gives the closest level. Memoized per text. `DifficultyBadge` (`lib/ui/widgets/difficulty_badge.dart`) renders the estimate ("~N3" when approximate) and optionally a stacked N5…N1 share bar; renders nothing when the tokenizer is unavailable (web stub).
 
 Smoke tests under `tool/` for offline verification:
 - `dart run tool/smoke_sources.dart` — hits Syosetu search + chapter, NHK Easy list + article.
