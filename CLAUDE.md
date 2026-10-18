@@ -266,8 +266,11 @@ Which feeds made the cut was decided by `dart run tool/smoke_desks.dart`, which 
 - `today` — everything published today; if today's edition isn't out yet, the whole of the newest day the feed carries (NHK Easy publishes on a lag, so a literal "today" filter often returned an empty paper).
 - `latest10` / `latest30` — the N newest unimported stories.
 - `day` — everything filed on one calendar day, paired with the `day` argument.
+- `window` — everything filed in the last `ReaderPrefs.newsWindowDays` (1 / 3 / 7 / 14, default 3, set under Settings → Papers); a feed quiet for the whole window offers its newest day instead.
 
 `FeedSync.survey` lists every carried source once and buckets what *isn't* already imported by publication day, so the fetch sheet can offer back issues by date with counts ("8月30日 · 14 new") instead of an undifferentiated "latest N". That's the orderly path; the latest-N modes remain as shortcuts. Day headers on the page carry the same action for their own date.
+
+**Automatic refresh** — `newsRefreshProvider` (`lib/providers/news_refresh_provider.dart`) runs a `window` sync on cold start, on app resume (Android keeps the process alive across days), and when a paper is opened. A paper only syncs when `NewsFreshness.isStale` says so — per-source stamps in `news_synced_at` (prefs box): never synced, synced on an earlier day, synced with a narrower window, or older than 2 h. Imported articles are the cache, so a day-later refresh only downloads the new day. After a successful sync, `SourceImporter.pruneBefore` drops stories older than the window (always keeping the newest day); an offline refresh trims nothing.
 
 Every mode skips already-imported `sourceUrl`s, sorts newest-first, and is capped at `FeedSync.maxPerSource` (40) per pass. Surfaced as buttons under the masthead, the fetch sheet in the app bar, pull-to-refresh, per-day "+" on the day headers, and a per-source bulk menu in the browse screen.
 

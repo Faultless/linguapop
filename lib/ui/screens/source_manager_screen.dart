@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/reader_prefs.dart';
+import '../../providers/news_refresh_provider.dart';
 import '../../providers/prefs_provider.dart';
 import '../../providers/sources_provider.dart';
 import '../../services/sources/source_types.dart';
@@ -48,7 +50,37 @@ class SourceManagerScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
               'Switching a paper off hides its stories from the front page and '
-              'skips it when fetching. Nothing already downloaded is deleted.',
+              'skips it when fetching. Its downloaded stories are kept.',
+              style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.4,
+                  color: cs.onSurface.withValues(alpha: 0.65)),
+            ),
+          ),
+          _Heading(label: 'KEEP NEWS FOR'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: SegmentedButton<int>(
+              showSelectedIcon: false,
+              segments: [
+                for (final d in ReaderPrefs.newsWindowChoices)
+                  ButtonSegment(
+                      value: d, label: Text(d == 1 ? 'Today' : '$d days')),
+              ],
+              selected: {prefs.newsWindowDays},
+              onSelectionChanged: (v) async {
+                await notifier.setNewsWindowDays(v.first);
+                // Widening backfills, narrowing trims; both happen now.
+                await ref.read(newsRefreshProvider.notifier).refreshCarried();
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: Text(
+              'Papers refresh on their own when you open the app. Stories '
+              'older than this are cleared; already-fetched days are kept, so '
+              'only new stories are downloaded.',
               style: TextStyle(
                   fontSize: 12.5,
                   height: 1.4,

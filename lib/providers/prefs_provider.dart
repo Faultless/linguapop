@@ -62,6 +62,9 @@ class ReaderPrefsNotifier extends StateNotifier<ReaderPrefs> {
   Future<void> setSimpleMode(bool v) =>
       update((p) => p.copyWith(simpleMode: v));
 
+  Future<void> setNewsWindowDays(int days) =>
+      update((p) => p.copyWith(newsWindowDays: days));
+
   /// Toggle one feed source on the newsstand.
   ///
   /// An empty list means "whatever the app ships on by default", so a source

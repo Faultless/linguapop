@@ -203,6 +203,45 @@ class SourceImporter {
     }
   }
 
+  /// Drop a feed's stories filed before [cutoffMs], so the paper only holds
+  /// the configured window. The newest day is always kept — a feed that's gone
+  /// quiet shouldn't empty out. Undated stories are kept. Returns how many
+  /// were removed.
+  Future<int> pruneBefore({
+    required String sourceId,
+    required int cutoffMs,
+  }) async {
+    final feedNovelId = 'feed:$sourceId';
+    final body = await _novels.loadBody(feedNovelId);
+    if (body == null || body.chapters.isEmpty) return 0;
+    final newest = body.chapters
+        .map((c) => c.publishedAt ?? 0)
+        .fold<int>(0, (a, b) => a > b ? a : b);
+    if (newest > 0) {
+      final d = DateTime.fromMillisecondsSinceEpoch(newest);
+      final newestDay = DateTime(d.year, d.month, d.day).millisecondsSinceEpoch;
+      if (newestDay < cutoffMs) cutoffMs = newestDay;
+    }
+    bool stale(Chapter c) => c.publishedAt != null && c.publishedAt! < cutoffMs;
+    final remaining = body.chapters.where((c) => !stale(c)).toList();
+    final removed = body.chapters.length - remaining.length;
+    if (removed == 0) return 0;
+    for (final c in body.chapters) {
+      if (stale(c)) await NewsImageStore.forget(c.imageUrl);
+    }
+    await _novels.saveBody(NovelBody(id: feedNovelId, chapters: remaining));
+    final meta = _novels.findById(feedNovelId);
+    if (meta != null) {
+      await _novels.updateMeta(meta.copyWith(
+        chapterCount: remaining.length,
+        lastReadChapter: remaining.isEmpty
+            ? 0
+            : meta.lastReadChapter.clamp(0, remaining.length - 1),
+      ));
+    }
+    return removed;
+  }
+
   /// Id of the imported book whose `sourceUrl` matches, or null.
   String? findBookIdByUrl(String url) {
     for (final m in _novels.all) {

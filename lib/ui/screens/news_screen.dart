@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/models/reader_prefs.dart';
 import '../../providers/news_provider.dart';
+import '../../providers/news_refresh_provider.dart';
 import '../../providers/prefs_provider.dart';
 import '../../providers/sources_provider.dart';
 import '../../services/sources/feed_sync.dart';
@@ -80,7 +81,23 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
     if (ids.length < 2) return;
     final current = ids.indexOf(_paper);
     final next = ((current < 0 ? 0 : current) + delta) % ids.length;
-    setState(() => _paper = ids[next < 0 ? next + ids.length : next]);
+    _openPaper(ids[next < 0 ? next + ids.length : next]);
+  }
+
+  /// Switch paper, and bring it up to date if it's gone stale.
+  void _openPaper(String id) {
+    setState(() => _paper = id);
+    ref.read(newsRefreshProvider.notifier).refresh(_selectedSources());
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(newsRefreshProvider.notifier).refresh(_selectedSources());
+      }
+    });
   }
 
   Future<void> _fetch(FeedFetchMode mode, {DateTime? day}) async {
@@ -94,6 +111,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
           sources: _selectedSources(),
           mode: mode,
           day: day,
+          days: ref.read(readerPrefsProvider).newsWindowDays,
           onProgress: (p) {
             if (mounted) setState(() => _progress = p);
           },
@@ -177,6 +195,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
     final cs = Theme.of(context).colorScheme;
     final articlesAsync = ref.watch(newsArticlesProvider);
     final readSet = ref.watch(newsReadProvider);
+    final refreshing = ref.watch(newsRefreshProvider);
     final registry = ref.watch(sourceRegistryProvider);
     final prefs = ref.watch(readerPrefsProvider);
     final simple = prefs.simpleMode;
@@ -302,7 +321,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
                   ),
               ],
               selected: _paper,
-              onSelected: (id) => setState(() => _paper = id),
+              onSelected: _openPaper,
             );
 
             final papers = [_kAllSources, for (final s in feedSources) s.id];
@@ -316,7 +335,11 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
                 else
                   rack,
                 const NewsRule(alpha: 0.35),
-                if (_syncing) _SyncBanner(progress: _progress),
+                if (_syncing)
+                  _SyncBanner(progress: _progress)
+                else if (refreshing.any(
+                    (id) => _paper == _kAllSources || id == _paper))
+                  const LinearProgressIndicator(minHeight: 2),
                 Expanded(
                   // Swipe left/right to change paper. The page under this
                   // scrolls vertically, so a horizontal drag is unambiguous —
@@ -329,7 +352,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
                       if (v > 250) _shiftPaper(-1);
                     },
                     child: RefreshIndicator(
-                    onRefresh: () => _fetch(FeedFetchMode.today),
+                    onRefresh: () => _fetch(FeedFetchMode.window),
                     child: viewMode == LibraryViewMode.grid
                         ? _FrontPage(
                             items: items,

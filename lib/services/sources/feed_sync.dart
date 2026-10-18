@@ -17,6 +17,10 @@ enum FeedFetchMode {
   /// Everything published on one particular calendar day. Paired with the
   /// `day` argument to [FeedSync.run].
   day,
+
+  /// Everything filed within the last N calendar days (today included).
+  /// Paired with the `days` argument; what the automatic refresh uses.
+  window,
 }
 
 extension FeedFetchModeLabel on FeedFetchMode {
@@ -25,6 +29,7 @@ extension FeedFetchModeLabel on FeedFetchMode {
         FeedFetchMode.latest10 => 'Latest 10',
         FeedFetchMode.latest30 => 'Latest 30',
         FeedFetchMode.day => 'A single day',
+        FeedFetchMode.window => 'Recent days',
       };
 
   String get description => switch (this) {
@@ -33,6 +38,7 @@ extension FeedFetchModeLabel on FeedFetchMode {
         FeedFetchMode.latest10 => 'The 10 newest stories you don\'t have yet',
         FeedFetchMode.latest30 => 'The 30 newest stories you don\'t have yet',
         FeedFetchMode.day => 'Every story a paper filed that day',
+        FeedFetchMode.window => 'Every story from the last few days',
       };
 }
 
@@ -114,12 +120,22 @@ class FeedSync {
   /// sync on a busy wire service shouldn't pull a hundred articles.
   static const maxPerSource = 40;
 
+  /// Ceiling for a [FeedFetchMode.window] pass, which may backfill two weeks.
+  static const maxPerWindow = 120;
+
+  /// Midnight starting a window of [days] calendar days ending today.
+  static DateTime windowStart(int days, [DateTime? now]) {
+    final n = now ?? DateTime.now();
+    return DateTime(n.year, n.month, n.day - (days < 1 ? 0 : days - 1));
+  }
+
   FeedSync(this._importer, this._imported);
 
   Future<FeedSyncResult> run({
     required List<FeedSource> sources,
     required FeedFetchMode mode,
     DateTime? day,
+    int days = 3,
     void Function(FeedSyncProgress)? onProgress,
     bool Function()? isCancelled,
   }) async {
@@ -138,7 +154,8 @@ class FeedSync {
         onProgress?.call(FeedSyncProgress(source.name, 0, 0));
         final stubs = await source.list();
         final imported = await _imported(source.id);
-        final fresh = selectForMode(stubs, imported, mode, day: day);
+        final fresh =
+            selectForMode(stubs, imported, mode, day: day, days: days);
         considered += fresh.length;
         if (fresh.isEmpty) continue;
         // One commit per source: the front page redraws once when the batch
@@ -173,6 +190,8 @@ class FeedSync {
     Set<String> imported,
     FeedFetchMode mode, {
     DateTime? day,
+    int days = 3,
+    DateTime? now,
   }) {
     final fresh = stubs.where((s) => !imported.contains(s.sourceUrl)).toList()
       ..sort((a, b) => (b.publishedAt ?? 0).compareTo(a.publishedAt ?? 0));
@@ -204,6 +223,20 @@ class FeedSync {
                 fresh.where((s) => s.publishedAt != null).toList(),
                 DateTime(day.year, day.month, day.day).millisecondsSinceEpoch)
             .take(maxPerSource)
+            .toList();
+      case FeedFetchMode.window:
+        final dated = fresh.where((s) => s.publishedAt != null).toList();
+        if (dated.isEmpty) return fresh.take(10).toList();
+        var start = windowStart(days, now).millisecondsSinceEpoch;
+        // A feed that's gone quiet for the whole window (NHK Easy lags) still
+        // offers its latest edition, as in today; pruning keeps it the same way.
+        final newest = stubs
+            .map((s) => s.publishedAt ?? 0)
+            .fold<int>(0, (a, b) => a > b ? a : b);
+        if (newest > 0 && newest < start) start = dayStart(newest);
+        return dated
+            .where((s) => s.publishedAt! >= start)
+            .take(maxPerWindow)
             .toList();
     }
   }
@@ -241,6 +274,12 @@ class FeedSync {
     final out = byDay.values.toList()
       ..sort((a, b) => b.day.compareTo(a.day));
     return out;
+  }
+
+  /// Local midnight of the day containing [epochMs].
+  static int dayStart(int epochMs) {
+    final d = DateTime.fromMillisecondsSinceEpoch(epochMs);
+    return DateTime(d.year, d.month, d.day).millisecondsSinceEpoch;
   }
 
   /// Every stub published on the same calendar day as [epochMs].

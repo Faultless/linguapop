@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../providers/prefs_provider.dart';
 import '../../providers/sources_provider.dart';
 import '../../services/sources/feed_sync.dart';
 import '../../services/sources/source_import.dart';
@@ -470,7 +471,10 @@ class _FeedSectionState extends ConsumerState<_FeedSection> {
     MiniToast.show(context, '${mode.label}…');
     final result = await ref
         .read(feedSyncProvider)
-        .run(sources: [widget.source], mode: mode);
+        .run(
+            sources: [widget.source],
+            mode: mode,
+            days: ref.read(readerPrefsProvider).newsWindowDays);
     if (!mounted) return;
     setState(() => _bulkBusy = false);
     MiniToast.show(context, result.summary);

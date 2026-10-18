@@ -61,9 +61,8 @@ class ReaderSettingsScreen extends ConsumerWidget {
           _NavTile(
             icon: Icons.newspaper_outlined,
             title: 'Papers',
-            subtitle: prefs.enabledSourceIds.isEmpty
-                ? 'Default papers on the stand'
-                : '${prefs.enabledSourceIds.length} on the stand',
+            subtitle: '${prefs.enabledSourceIds.isEmpty ? 'Default papers' : '${prefs.enabledSourceIds.length} papers'}'
+                ' · ${prefs.newsWindowDays == 1 ? 'today only' : 'last ${prefs.newsWindowDays} days'}',
             onTap: () => push(const SourceManagerScreen()),
           ),
           if (!simple) ...[

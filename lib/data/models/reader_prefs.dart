@@ -123,6 +123,11 @@ class ReaderPrefs {
   /// sources" — a fresh install shouldn't have to opt in to anything.
   final List<String> enabledSourceIds;
 
+  /// How many days of news the front page keeps. Syncs backfill this far and
+  /// stories older than it are dropped. One of [newsWindowChoices].
+  final int newsWindowDays;
+  static const newsWindowChoices = [1, 3, 7, 14];
+
   const ReaderPrefs({
     required this.fontFamily,
     required this.fontSize,
@@ -149,6 +154,7 @@ class ReaderPrefs {
     required this.swipeToTurnPage,
     required this.simpleMode,
     required this.enabledSourceIds,
+    required this.newsWindowDays,
   });
 
   static ReaderPrefs defaults() => ReaderPrefs(
@@ -177,6 +183,7 @@ class ReaderPrefs {
         swipeToTurnPage: true,
         simpleMode: true,
         enabledSourceIds: const [],
+        newsWindowDays: 3,
       );
 
   ReaderPrefs copyWith({
@@ -205,6 +212,7 @@ class ReaderPrefs {
     bool? swipeToTurnPage,
     bool? simpleMode,
     List<String>? enabledSourceIds,
+    int? newsWindowDays,
   }) =>
       ReaderPrefs(
         fontFamily: fontFamily ?? this.fontFamily,
@@ -233,6 +241,7 @@ class ReaderPrefs {
         swipeToTurnPage: swipeToTurnPage ?? this.swipeToTurnPage,
         simpleMode: simpleMode ?? this.simpleMode,
         enabledSourceIds: enabledSourceIds ?? this.enabledSourceIds,
+        newsWindowDays: newsWindowDays ?? this.newsWindowDays,
       );
 
   Map<String, dynamic> toJson() => {
@@ -261,6 +270,7 @@ class ReaderPrefs {
         'swipeToTurnPage': swipeToTurnPage,
         'simpleMode': simpleMode,
         'enabledSourceIds': enabledSourceIds,
+        'newsWindowDays': newsWindowDays,
       };
 
   factory ReaderPrefs.fromJson(Map<String, dynamic> j) {
@@ -320,6 +330,7 @@ class ReaderPrefs {
       enabledSourceIds: ((j['enabledSourceIds'] as List?) ?? const [])
           .map((e) => e.toString())
           .toList(),
+      newsWindowDays: (j['newsWindowDays'] as num?)?.toInt() ?? d.newsWindowDays,
     );
   }
 }
