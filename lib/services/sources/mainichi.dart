@@ -76,7 +76,7 @@ class MainichiSource extends FeedSource {
   String? get homepageUrl => 'https://mainichi.jp/';
 
   @override
-  Future<List<ArticleStub>> list() async {
+  Future<List<ArticleStub>> list({DateTime? since}) async {
     final res = await _client.get(Uri.parse(_rssUrl));
     if (!res.ok) throw Exception('${desk.name} RSS HTTP ${res.statusCode}');
     final out = <ArticleStub>[];

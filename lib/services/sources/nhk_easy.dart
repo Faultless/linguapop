@@ -42,7 +42,7 @@ class NhkEasySource extends FeedSource {
   Future<void> _ensureAuthenticated() => NhkAuth.ensure(_client);
 
   @override
-  Future<List<ArticleStub>> list() async {
+  Future<List<ArticleStub>> list({DateTime? since}) async {
     final listUri = Uri.parse(_listUrl);
     var res = await _client.get(listUri);
     if (res.statusCode == 401 || res.statusCode == 403) {

@@ -142,7 +142,11 @@ class SourceImporter {
       } catch (_) {
         // One unreachable article shouldn't cost the reader the other nine.
       }
-      if (i < stubs.length - 1) await Future<void>.delayed(delay);
+      // Politeness is for the article server; a body the listing carried
+      // cost it nothing.
+      if (i < stubs.length - 1 && stubs[i].body == null) {
+        await Future<void>.delayed(delay);
+      }
     }
     if (fetched.isEmpty) return 0;
 

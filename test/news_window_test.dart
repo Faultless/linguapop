@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:linguapop/services/sources/feed_sync.dart';
 import 'package:linguapop/services/sources/news_freshness.dart';
+import 'package:linguapop/services/sources/nhk_news.dart';
 import 'package:linguapop/services/sources/source_types.dart';
 
 ArticleStub stub(String id, DateTime at) => ArticleStub(
@@ -44,7 +47,54 @@ void main() {
     });
   });
 
+  test('window caps each day, so a busy day leaves room for the rest', () {
+    final picked = FeedSync.selectForMode(
+      [
+        for (var i = 0; i < 30; i++) stub('t$i', daysAgo(0)),
+        for (var i = 0; i < 5; i++) stub('y$i', daysAgo(1)),
+      ],
+      const {},
+      FeedFetchMode.window,
+      days: 3,
+      now: now,
+    );
+    expect(picked.where((s) => s.id.startsWith('t')).length, FeedSync.maxPerDay);
+    expect(picked.where((s) => s.id.startsWith('y')).length, 5);
+  });
+
+  group('NHK playlist', () {
+    const body = '第一段落の本文です。これは十分に長い記事の本文になるように書かれています。'
+        '\n\n\n第二段落です。ここにも本文が続きます。さらに文章を足して八十文字を超えるようにします。';
+    final json = '''{"count":2,"result":[
+      {"id":"nd-20261018de61247","headline":"見出し","datePublished":"2026-10-18T19:00:32+09:00",
+       "canonical":"https://news.web.nhk/newsweb/na/nd-20261018de61247",
+       "image":{"icon":{"url":"https://imgu.web.nhk/s.jpg"},"medium":{"url":"https://imgu.web.nhk/l.jpg"}},
+       "articleBody":${jsonEncode(body)}},
+      {"id":"nd-flash","headline":"速報","datePublished":"2026-10-18T19:00:32+09:00","articleBody":"短い"}
+    ]}''';
+
+    test('carries the body, normalised to one blank line per paragraph', () {
+      final stubs = NhkNewsSource.parsePlaylist(json);
+      expect(stubs.map((s) => s.id), ['nd-20261018de61247']);
+      final s = stubs.single;
+      expect(s.body!.split('\n\n'), hasLength(2));
+      expect(s.imageUrl, 'https://imgu.web.nhk/s.jpg');
+      expect(s.sourceUrl, 'https://news.web.nhk/newsweb/na/nd-20261018de61247');
+      expect(s.publishedAt,
+          DateTime.parse('2026-10-18T19:00:32+09:00').millisecondsSinceEpoch);
+    });
+  });
+
   group('isStale', () {
+    test('a stamp from an older sync version is stale', () {
+      expect(
+          NewsFreshness.isStale(
+              SyncStamp(DateTime(2026, 10, 18, 8).millisecondsSinceEpoch, 3, 1),
+              3,
+              now),
+          isTrue);
+    });
+
     SyncStamp at(DateTime t, [int days = 3]) =>
         SyncStamp(t.millisecondsSinceEpoch, days);
 

@@ -120,8 +120,9 @@ class FeedSync {
   /// sync on a busy wire service shouldn't pull a hundred articles.
   static const maxPerSource = 40;
 
-  /// Ceiling for a [FeedFetchMode.window] pass, which may backfill two weeks.
-  static const maxPerWindow = 120;
+  /// Per-day ceiling in a [FeedFetchMode.window] pass, so a busy wire's
+  /// newest day can't crowd the rest of the window out.
+  static const maxPerDay = 20;
 
   /// Midnight starting a window of [days] calendar days ending today.
   static DateTime windowStart(int days, [DateTime? now]) {
@@ -152,7 +153,7 @@ class FeedSync {
       }
       try {
         onProgress?.call(FeedSyncProgress(source.name, 0, 0));
-        final stubs = await source.list();
+        final stubs = await source.list(since: _since(mode, day, days));
         final imported = await _imported(source.id);
         final fresh =
             selectForMode(stubs, imported, mode, day: day, days: days);
@@ -182,6 +183,14 @@ class FeedSync {
     return FeedSyncResult(
         added: added, considered: considered, failedSources: failed);
   }
+
+  /// How far back a pass needs the feed to list.
+  static DateTime? _since(FeedFetchMode mode, DateTime? day, int days) =>
+      switch (mode) {
+        FeedFetchMode.window => windowStart(days),
+        FeedFetchMode.day => day,
+        _ => null,
+      };
 
   /// Which stubs this pass should fetch: not already imported, newest first,
   /// filtered and capped per [mode].
@@ -234,10 +243,15 @@ class FeedSync {
             .map((s) => s.publishedAt ?? 0)
             .fold<int>(0, (a, b) => a > b ? a : b);
         if (newest > 0 && newest < start) start = dayStart(newest);
-        return dated
-            .where((s) => s.publishedAt! >= start)
-            .take(maxPerWindow)
-            .toList();
+        final perDay = <int, int>{};
+        return [
+          for (final s in dated)
+            if (s.publishedAt! >= start &&
+                (perDay.update(dayStart(s.publishedAt!), (n) => n + 1,
+                        ifAbsent: () => 1) <=
+                    maxPerDay))
+              s,
+        ];
     }
   }
 

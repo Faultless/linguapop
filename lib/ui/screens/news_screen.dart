@@ -239,7 +239,7 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
             onPressed: _syncing
                 ? () => setState(() => _cancelRequested = true)
                 : (simple
-                    ? () => _fetch(FeedFetchMode.today)
+                    ? () => _fetch(FeedFetchMode.window)
                     : _pickFetchMode),
             icon: _syncing
                 ? const Icon(Icons.stop_circle_outlined)
@@ -401,8 +401,8 @@ class _NewsScreenState extends ConsumerState<NewsScreen> {
                         ),
                         TextButton(
                           onPressed:
-                              _syncing ? null : () => _fetch(FeedFetchMode.today),
-                          child: const Text("Today's paper"),
+                              _syncing ? null : () => _fetch(FeedFetchMode.window),
+                          child: const Text('Catch up'),
                         ),
                       ],
                     ),
@@ -591,7 +591,7 @@ class _FrontPageHeader extends StatelessWidget {
         if (simple)
           // Reading mode keeps one verb on the page: get the paper.
           OutlinedButton(
-            onPressed: syncing ? null : () => onFetch(FeedFetchMode.today),
+            onPressed: syncing ? null : () => onFetch(FeedFetchMode.window),
             child: const Text('今日の新聞'),
           )
         else
@@ -600,9 +600,9 @@ class _FrontPageHeader extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed:
-                      syncing ? null : () => onFetch(FeedFetchMode.today),
+                      syncing ? null : () => onFetch(FeedFetchMode.window),
                   icon: const Icon(Icons.today_outlined, size: 17),
-                  label: const Text("Today's paper"),
+                  label: const Text('Catch up'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1172,7 +1172,7 @@ class _EmptyState extends StatelessWidget {
         if (!hasAnyArticles)
           Center(
             child: FilledButton.tonalIcon(
-              onPressed: syncing ? null : () => onFetch(FeedFetchMode.today),
+              onPressed: syncing ? null : () => onFetch(FeedFetchMode.window),
               icon: const Icon(Icons.today_outlined),
               label: const Text("Get today's paper"),
             ),

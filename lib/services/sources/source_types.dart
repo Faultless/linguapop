@@ -33,8 +33,9 @@ abstract class Source {
 }
 
 abstract class FeedSource extends Source {
-  /// Fetch the latest items.
-  Future<List<ArticleStub>> list();
+  /// Fetch the latest items. [since] asks for everything back to that day;
+  /// a feed that only carries its newest stories may ignore it.
+  Future<List<ArticleStub>> list({DateTime? since});
   /// Resolve one stub to a ready-to-store [Chapter].
   Future<Chapter> fetch(ArticleStub stub);
 }
@@ -46,6 +47,10 @@ class ArticleStub {
   final int? publishedAt; // ms-since-epoch
   final String? summary;
   final String? imageUrl;
+
+  /// The article text, when the listing already carried it — fetching such a
+  /// stub needs no request.
+  final String? body;
   const ArticleStub({
     required this.id,
     required this.title,
@@ -53,6 +58,7 @@ class ArticleStub {
     this.publishedAt,
     this.summary,
     this.imageUrl,
+    this.body,
   });
 }
 

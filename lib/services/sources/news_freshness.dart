@@ -8,11 +8,19 @@ const _key = 'news_synced_at';
 class SyncStamp {
   final int at;
   final int days;
-  const SyncStamp(this.at, this.days);
 
-  Map<String, dynamic> toJson() => {'at': at, 'days': days};
-  factory SyncStamp.fromJson(Map<String, dynamic> j) =>
-      SyncStamp((j['at'] as num).toInt(), (j['days'] as num).toInt());
+  /// Bumped when the sync logic changes enough that earlier stamps can't be
+  /// trusted (v2: NHK moved off its frozen RSS).
+  final int version;
+  static const current = 2;
+
+  const SyncStamp(this.at, this.days, [this.version = current]);
+
+  Map<String, dynamic> toJson() => {'at': at, 'days': days, 'v': version};
+  factory SyncStamp.fromJson(Map<String, dynamic> j) => SyncStamp(
+      (j['at'] as num).toInt(),
+      (j['days'] as num).toInt(),
+      (j['v'] as num?)?.toInt() ?? 1);
 }
 
 /// Per-source sync stamps, so a refresh only touches papers that need it.
@@ -28,6 +36,7 @@ class NewsFreshness {
   /// than is now asked for, or simply older than [maxAge].
   static bool isStale(SyncStamp? stamp, int days, DateTime now) {
     if (stamp == null || stamp.days < days) return true;
+    if (stamp.version != SyncStamp.current) return true;
     final at = DateTime.fromMillisecondsSinceEpoch(stamp.at);
     if (at.year != now.year || at.month != now.month || at.day != now.day) {
       return true;
