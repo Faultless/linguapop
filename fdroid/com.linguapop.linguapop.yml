@@ -22,7 +22,7 @@ Repo: https://github.com/Faultless/linguapop.git
 Builds:
   - versionName: 7.5.1
     versionCode: 2131
-    commit: c7dc7b15055f3a1c21a66f57012f9c546c58a613
+    commit: 69eca3bfb09369e810b63729ca13a565933fcac0
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     binary: 
       https://github.com/Faultless/linguapop/releases/download/v%v/linguapop-%v-armeabi-v7a.apk
@@ -45,7 +45,7 @@ Builds:
 
   - versionName: 7.5.1
     versionCode: 2132
-    commit: c7dc7b15055f3a1c21a66f57012f9c546c58a613
+    commit: 69eca3bfb09369e810b63729ca13a565933fcac0
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     binary: 
       https://github.com/Faultless/linguapop/releases/download/v%v/linguapop-%v-arm64-v8a.apk
@@ -68,7 +68,7 @@ Builds:
 
   - versionName: 7.5.1
     versionCode: 2133
-    commit: c7dc7b15055f3a1c21a66f57012f9c546c58a613
+    commit: 69eca3bfb09369e810b63729ca13a565933fcac0
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
     binary: 
       https://github.com/Faultless/linguapop/releases/download/v%v/linguapop-%v-x86_64.apk
