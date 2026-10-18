@@ -26,8 +26,10 @@ KEY_PROPS="$REPO_ROOT/android/key.properties"
 APKSIGNER="$(ls "$HOME"/Library/Android/sdk/build-tools/*/apksigner 2>/dev/null | tail -1)"
 [ -x "$APKSIGNER" ] || { echo "apksigner not found"; exit 1; }
 
-# shellcheck disable=SC2046
-eval "$(grep -E '^(storeFile|storePassword|keyAlias|keyPassword)=' "$KEY_PROPS" | sed 's/^/KP_/')"
+# Read rather than eval: the key's path has spaces in it.
+while IFS='=' read -r k v; do
+  case "$k" in storeFile|storePassword|keyAlias|keyPassword) printf -v "KP_$k" '%s' "$v" ;; esac
+done < "$KEY_PROPS"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
