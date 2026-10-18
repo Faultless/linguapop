@@ -1,9 +1,10 @@
 AntiFeatures:
   NonFreeNet:
-    en-US: Articles are fetched from NHK and the Mainichi Shimbun, dictionary entries
-      from Jisho, and optional machine translation from Google Translate. All are
-      non-free network services. The app has no accounts and no telemetry, and makes
-      no request that the user did not ask for.
+    en-US: News is fetched from NHK and the Mainichi Shimbun, including automatically
+      when the app opens. Dictionary entries come from Jisho, web novels from Syosetu,
+      machine translation from Google Translate and MyMemory, and optional cover art
+      from Google Books (off by default). All are non-free network services. The app
+      has no accounts and no telemetry.
 Categories:
   - News
   - Reading
@@ -20,8 +21,8 @@ RepoType: git
 Repo: https://github.com/Faultless/linguapop.git
 
 Builds:
-  - versionName: 7.5.1
-    versionCode: 2131
+  - versionName: 7.5.2
+    versionCode: 2141
     commit: 69eca3bfb09369e810b63729ca13a565933fcac0
     output: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
     binary: 
@@ -43,8 +44,8 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm
     ndk: 28.2.13676358
 
-  - versionName: 7.5.1
-    versionCode: 2132
+  - versionName: 7.5.2
+    versionCode: 2142
     commit: 69eca3bfb09369e810b63729ca13a565933fcac0
     output: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     binary: 
@@ -66,8 +67,8 @@ Builds:
       - $$flutter$$/bin/flutter build apk --release --split-per-abi --target-platform=android-arm64
     ndk: 28.2.13676358
 
-  - versionName: 7.5.1
-    versionCode: 2133
+  - versionName: 7.5.2
+    versionCode: 2143
     commit: 69eca3bfb09369e810b63729ca13a565933fcac0
     output: build/app/outputs/flutter-apk/app-x86_64-release.apk
     binary: 
@@ -98,5 +99,5 @@ VercodeOperation:
   - 10 * %c + 2
   - 10 * %c + 3
 UpdateCheckData: pubspec.yaml|version:\s.+\+(\d+)|.|version:\s(.+)\+
-CurrentVersion: 7.5.1
-CurrentVersionCode: 2133
+CurrentVersion: 7.5.2
+CurrentVersionCode: 2143

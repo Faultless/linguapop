@@ -128,6 +128,10 @@ class ReaderPrefs {
   final int newsWindowDays;
   static const newsWindowChoices = [1, 3, 7, 14];
 
+  /// Ask Google Books for a cover when an imported book has none. Off by
+  /// default: it sends the title and author off the device.
+  final bool fetchCoversOnline;
+
   const ReaderPrefs({
     required this.fontFamily,
     required this.fontSize,
@@ -155,6 +159,7 @@ class ReaderPrefs {
     required this.simpleMode,
     required this.enabledSourceIds,
     required this.newsWindowDays,
+    required this.fetchCoversOnline,
   });
 
   static ReaderPrefs defaults() => ReaderPrefs(
@@ -184,6 +189,7 @@ class ReaderPrefs {
         simpleMode: true,
         enabledSourceIds: const [],
         newsWindowDays: 3,
+        fetchCoversOnline: false,
       );
 
   ReaderPrefs copyWith({
@@ -213,6 +219,7 @@ class ReaderPrefs {
     bool? simpleMode,
     List<String>? enabledSourceIds,
     int? newsWindowDays,
+    bool? fetchCoversOnline,
   }) =>
       ReaderPrefs(
         fontFamily: fontFamily ?? this.fontFamily,
@@ -242,6 +249,7 @@ class ReaderPrefs {
         simpleMode: simpleMode ?? this.simpleMode,
         enabledSourceIds: enabledSourceIds ?? this.enabledSourceIds,
         newsWindowDays: newsWindowDays ?? this.newsWindowDays,
+        fetchCoversOnline: fetchCoversOnline ?? this.fetchCoversOnline,
       );
 
   Map<String, dynamic> toJson() => {
@@ -271,6 +279,7 @@ class ReaderPrefs {
         'simpleMode': simpleMode,
         'enabledSourceIds': enabledSourceIds,
         'newsWindowDays': newsWindowDays,
+        'fetchCoversOnline': fetchCoversOnline,
       };
 
   factory ReaderPrefs.fromJson(Map<String, dynamic> j) {
@@ -331,6 +340,8 @@ class ReaderPrefs {
           .map((e) => e.toString())
           .toList(),
       newsWindowDays: (j['newsWindowDays'] as num?)?.toInt() ?? d.newsWindowDays,
+      fetchCoversOnline:
+          j['fetchCoversOnline'] as bool? ?? d.fetchCoversOnline,
     );
   }
 }

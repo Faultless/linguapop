@@ -5,9 +5,10 @@ for a dictionary entry.
 
 <b>The newsstand</b>
 
-Papers are fetched whole rather than article by article: pull today's edition,
-or the latest ten stories, from NHK News Web Easy, NHK News Web and the
-Mainichi Shimbun. The front page sets them like a Japanese daily — masthead,
+Papers are fetched whole rather than article by article, from NHK News Web
+Easy, NHK News and the Mainichi Shimbun, and keep themselves current: when the
+app opens, each paper on the stand catches up on the last few days (three by
+default, up to two weeks). The front page sets them like a Japanese daily — masthead,
 dateline, two columns of headlines with the images the source published.
 Swipe left or right to change paper.
 
@@ -32,6 +33,10 @@ layout.
 <b>Offline and private</b>
 
 Japanese analysis runs entirely on the device with a bundled MeCab tokeniser
-and dictionary. There are no accounts, no tracking, and no data leaves the
-device except the requests that fetch the articles and dictionary entries you
-ask for.
+and dictionary. There are no accounts and no tracking.
+
+The network services it talks to: NHK and the Mainichi for news (refreshed
+automatically when the app opens), Jisho for dictionary entries, Syosetu when
+you browse web novels, Google Translate with MyMemory as a fallback when you
+ask for a translation, and Google Books for covers only if you switch that on
+in settings.

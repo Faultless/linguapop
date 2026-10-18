@@ -65,6 +65,17 @@ class ReaderSettingsScreen extends ConsumerWidget {
                 ' · ${prefs.newsWindowDays == 1 ? 'today only' : 'last ${prefs.newsWindowDays} days'}',
             onTap: () => push(const SourceManagerScreen()),
           ),
+          SwitchListTile(
+            secondary: Icon(Icons.image_search,
+                color: Theme.of(context).colorScheme.primary),
+            title: const Text('Look up covers online',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: const Text(
+                'Sends an imported book\'s title and author to Google Books',
+                style: TextStyle(fontSize: 12.5)),
+            value: prefs.fetchCoversOnline,
+            onChanged: notifier.setFetchCoversOnline,
+          ),
           if (!simple) ...[
             const Divider(height: 24),
             _NavTile(

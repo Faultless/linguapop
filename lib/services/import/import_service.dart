@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -8,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../data/models/chapter.dart';
 import '../../data/models/novel.dart';
 import '../../providers/novels_provider.dart';
+import '../../providers/prefs_provider.dart';
 import 'epub_importer.dart';
 import 'jp_detect.dart';
 import 'novel_cleaner.dart';
@@ -28,7 +30,12 @@ class ImportResult {
 
 class ImportService {
   final NovelsNotifier _novels;
-  ImportService(this._novels);
+
+  /// Whether the reader has opted in to online cover lookups.
+  final bool Function() _fetchCovers;
+  ImportService(this._novels, [this._fetchCovers = _never]);
+
+  static bool _never() => false;
 
   Future<ImportResult> importFile({
     required String filename,
@@ -92,7 +99,7 @@ class ImportService {
 
     // Best-effort online cover lookup for books that didn't ship one (TXT, or
     // EPUBs with no embedded cover). Non-blocking — import succeeds regardless.
-    if (meta.coverUrl == null || meta.coverUrl!.isEmpty) {
+    if ((meta.coverUrl == null || meta.coverUrl!.isEmpty) && _fetchCovers()) {
       unawaited(_novels.autoFetchCover(id));
     }
 
@@ -115,7 +122,7 @@ class ImportService {
   }
 
   static _Parsed _fromTxt(Uint8List bytes, String filename) {
-    final text = _decodeText(bytes);
+    final text = decodeText(bytes);
     final base = filename.replaceFirst(RegExp(r'\.[^.]+$'), '');
     return _Parsed(
       title: base.isEmpty ? 'Untitled' : base,
@@ -123,12 +130,17 @@ class ImportService {
     );
   }
 
-  static String _decodeText(Uint8List bytes) {
-    // Try UTF-8 first; fall back to system default if it fails.
+  static String decodeText(Uint8List bytes) {
+    // UTF-8 first (BOM stripped); a file that isn't valid UTF-8 falls back to
+    // the system encoding, then Latin-1, which never throws.
     try {
-      return String.fromCharCodes(bytes); // tolerant of malformed bytes
-    } catch (_) {
-      return systemEncoding.decode(bytes);
+      return utf8.decode(bytes).replaceFirst('\uFEFF', '');
+    } on FormatException {
+      try {
+        return systemEncoding.decode(bytes);
+      } catch (_) {
+        return latin1.decode(bytes);
+      }
     }
   }
 }
@@ -149,5 +161,6 @@ class _Parsed {
 }
 
 final importServiceProvider = Provider<ImportService>((ref) {
-  return ImportService(ref.read(novelsProvider.notifier));
+  return ImportService(ref.read(novelsProvider.notifier),
+      () => ref.read(readerPrefsProvider).fetchCoversOnline);
 });

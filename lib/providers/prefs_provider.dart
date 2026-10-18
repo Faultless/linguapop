@@ -62,6 +62,9 @@ class ReaderPrefsNotifier extends StateNotifier<ReaderPrefs> {
   Future<void> setSimpleMode(bool v) =>
       update((p) => p.copyWith(simpleMode: v));
 
+  Future<void> setFetchCoversOnline(bool v) =>
+      update((p) => p.copyWith(fetchCoversOnline: v));
+
   Future<void> setNewsWindowDays(int days) =>
       update((p) => p.copyWith(newsWindowDays: days));
 

@@ -101,7 +101,7 @@ class _WordPopoverState extends ConsumerState<_WordPopover> {
                   );
                 }
                 if (snap.hasError) {
-                  return _ErrorBlock(message: snap.error.toString());
+                  return _ErrorBlock(message: _describe(snap.error));
                 }
                 final result = snap.data!;
                 if (result.entries.isEmpty) {
@@ -411,6 +411,18 @@ class _EntryBlock extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A readable reason for a failed lookup, never a raw exception.
+String _describe(Object? error) {
+  final s = error.toString();
+  if (s.contains('SocketException') ||
+      s.contains('ClientException') ||
+      s.contains('TimeoutException') ||
+      s.contains('HandshakeException')) {
+    return "Couldn't reach the dictionary. Check your connection and try again.";
+  }
+  return 'The dictionary lookup failed. Try again in a moment.';
 }
 
 class _ErrorBlock extends StatelessWidget {
